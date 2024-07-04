@@ -24,7 +24,7 @@ def shuffle_holds(climb: str) -> str:
 
 
 class Tokenizer:
-    def __init__(self, data: Iterable[str], pad_to: int = 64):
+    def __init__(self, data: Iterable[str]):
         self.eos_token = "[EOS]"
         self.bos_token = "[BOS]"
         self.pad_token = "[PAD]"
@@ -38,6 +38,7 @@ class Tokenizer:
     @staticmethod
     def split_tokens(frames: str) -> list[str]:
         """If not whitespace separated, split the frames into tokens."""
+        assert " " not in frames, "No whitespace allowed in frames"
         res = []
         for pair in frames.split("p")[1:]:
             hold, color = pair.split("r")
@@ -45,20 +46,20 @@ class Tokenizer:
         return res
 
     def encode(self, frames: str) -> torch.Tensor:
-        split = [self.bos_token] + frames.split() + [self.eos_token]
+        split = [self.bos_token] + self.split_tokens(frames) + [self.eos_token]
         return torch.tensor([self.encode_map[x] for x in split], dtype=torch.long)
 
     def encode_batch(self, frames: list[str]) -> list[torch.Tensor]:
         return [self.encode(x) for x in frames]
 
-    def decode(self, x: torch.Tensor) -> str:
+    def decode(self, x: torch.Tensor) -> list:
         decoded = []
         for token in x.tolist():
             if token in self.decode_map:
                 decoded.append(self.decode_map[token])
             else:
                 decoded.append(self.unk_token)
-        return " ".join(decoded)
+        return decoded
 
     def decode_batch(self, x: Iterable[torch.Tensor]) -> list[str]:
         return [self.decode(y) for y in x]
@@ -76,7 +77,7 @@ class Tokenizer:
             "r15",
         ]
         for frame in self.data:
-            for token in frame.split():
+            for token in self.split_tokens(frame):
                 if token not in tokens:
                     tokens.append(token)
         encode_map = {token: idx for idx, token in enumerate(tokens)}
@@ -93,7 +94,7 @@ class Plotter:
     def _create_image_coords(self, image_coords: pd.DataFrame):
         return {name: (row["x"], row["y"]) for name, row in image_coords.iterrows()}
 
-    def plot_climb(self, frames: str):
+    def plot_climb(self, frames: str) -> np.ndarray:
         frames = frames.replace(" ", "")  # here the input takes no whitespace
         board_path = "figs/full_board_commercial.png"
         image = cv2.imread(board_path)
