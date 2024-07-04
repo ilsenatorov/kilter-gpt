@@ -1,6 +1,6 @@
 .*
 !.gitignore
-data/
+data/*
 __*__
 wandb/
 kilter-gpt/
