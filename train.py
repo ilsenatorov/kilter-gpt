@@ -33,7 +33,7 @@ del [config_dict["__doc__"]]
 
 config = Config()
 
-ds = KilterGPTDataset("kilterboard.csv", context_len=config.context_len)
+ds = KilterGPTDataset("data/raw/gpt_subset.csv", context_len=config.context_len)
 dl = DataLoader(ds, batch_size=config.batch_size, shuffle=True, pin_memory=True, num_workers=8)
 model = GPTModel(config)
 

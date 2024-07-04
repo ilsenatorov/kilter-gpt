@@ -144,7 +144,7 @@ class GPTModel(L.LightningModule):
     def generate_from_prompts(self):
         prompts = torch.load("prompts.pt").to(self.device)
         encdec = EncoderDecoder()
-        tokenizer = Tokenizer(pd.read_csv("kilterboard.csv")["frames"])
+        tokenizer = Tokenizer(pd.read_csv("data/raw/gpt_subset.csv")["frames"])
         for temp in [0.1, 0.5, 0.7, 0.9]:
             generated = self.generate(prompts, 64, temperature=temp)
             text = tokenizer.decode_batch(generated)
