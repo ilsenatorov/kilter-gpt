@@ -18,7 +18,11 @@ Simply running the `train.py` script will start training the model. You can adju
 
 ## TODO
 
-* Validation set and loop
+* Save and load tokenizer from json/pickle
+* Improve tokenizer functionality, move all the tokenization logic to the tokenizer class
+* Improve consistency of data preprocessing store as pandas dataframe, handle internally as list/tensor
+* Better config handling
+* Validation set and loop?
 * Tokenize angle/difficulty and add them to the model
 * Add some automatic evaluation metrics (similarity to real data, consistency, etc.)
 * Log the model to wandb

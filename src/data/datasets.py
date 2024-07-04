@@ -20,9 +20,6 @@ class KilterGPTDataset(Dataset):
         self.tokenizer = self._get_tokenizer()
         self.context_len = context_len
         self.min_tokens = min_tokens
-        self.pad_token = self.tokenizer.encode_map["[PAD]"]
-        self.eos_token = self.tokenizer.encode_map["[EOS]"]
-        self.bos_token = self.tokenizer.encode_map["[BOS]"]
 
     def _get_tokenizer(self):
         return Tokenizer(self.df["frames"])
@@ -38,4 +35,6 @@ class KilterGPTDataset(Dataset):
         buffer = t[start:end]
         x = buffer[:-1]
         y = buffer[1:]
-        return pad_to(x, self.context_len, self.pad_token), pad_to(y, self.context_len, self.pad_token)
+        x = pad_to(x, self.context_len, self.tokenizer.encode_map[self.tokenizer.pad_token])
+        y = pad_to(y, self.context_len, self.tokenizer.encode_map[self.tokenizer.pad_token])
+        return x, y

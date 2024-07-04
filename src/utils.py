@@ -20,12 +20,18 @@ def shuffle_holds(climb: str) -> str:
     """Shuffle the holds in a climb"""
     holds = climb.split("p")[1:]
     np.random.shuffle(holds)
-    return "".join(["p" + x for x in holds])
+    return " ".join(["p" + x.strip() for x in holds])
 
 
 class Tokenizer:
-    def __init__(self, data: Iterable[str]):
+    def __init__(self, data: Iterable[str], pad_to: int = 64):
+        self.eos_token = "[EOS]"
+        self.bos_token = "[BOS]"
+        self.pad_token = "[PAD]"
+        self.unk_token = "[UNK]"
+        self.mask_token = "[MASK]"
         self.data = data
+        self.pad_to = pad_to
         self.encode_map = self._get_token_map()
         self.decode_map = {v: k for k, v in self.encode_map.items()}
 
@@ -39,7 +45,7 @@ class Tokenizer:
         return res
 
     def encode(self, frames: str) -> torch.Tensor:
-        split = ["[BOS]"] + self.split_tokens(frames) + ["[EOS]"]
+        split = [self.bos_token] + frames.split() + [self.eos_token]
         return torch.tensor([self.encode_map[x] for x in split], dtype=torch.long)
 
     def encode_batch(self, frames: list[str]) -> list[torch.Tensor]:
@@ -51,16 +57,26 @@ class Tokenizer:
             if token in self.decode_map:
                 decoded.append(self.decode_map[token])
             else:
-                decoded.append("[UNK]")
-        return "".join(decoded)
+                decoded.append(self.unk_token)
+        return " ".join(decoded)
 
     def decode_batch(self, x: Iterable[torch.Tensor]) -> list[str]:
         return [self.decode(y) for y in x]
 
     def _get_token_map(self) -> dict[str, int]:
-        tokens = ["[BOS]", "[EOS]", "[MASK]", "[UNK]", "[PAD]", "r12", "r13", "r14", "r15"]
+        tokens = [
+            self.bos_token,
+            self.eos_token,
+            self.pad_token,
+            self.mask_token,
+            self.unk_token,
+            "r12",
+            "r13",
+            "r14",
+            "r15",
+        ]
         for frame in self.data:
-            for token in self.split_tokens(frame):
+            for token in frame.split():
                 if token not in tokens:
                     tokens.append(token)
         encode_map = {token: idx for idx, token in enumerate(tokens)}
@@ -68,63 +84,17 @@ class Tokenizer:
 
 
 class Plotter:
+    """Plots the selected holds onto the empty kilterboard. Requires data from `figs/` folder."""
 
     def __init__(self):
-        # holds = pd.read_csv("data/raw/holds.csv", index_col=0)
         image_coords = pd.read_csv("figs/image_coords.csv", index_col=0)
-        # self.coord_to_id = self._create_coord_to_id(holds)
-        # self.id_to_coord = self._create_id_to_coord(holds)
         self.image_coords = self._create_image_coords(image_coords)
-
-    # def _create_coord_to_id(self, holds: pd.DataFrame):
-    #     hold_lookup_matrix = np.zeros((48, 48), dtype=int)
-    #     for i in range(48):
-    #         for j in range(48):
-    #             hold = holds[(holds["x"] == (i * 4 + 4)) & (holds["y"] == (j * 4 + 4))]
-    #             if not hold.empty:
-    #                 hold_lookup_matrix[i, j] = int(hold.index[0])
-    #     return hold_lookup_matrix
-
-    # def _create_id_to_coord(self, holds):
-    #     id_to_coord = holds[["x", "y"]]
-    #     id_to_coord = (id_to_coord - 4) // 4
-    #     return id_to_coord.transpose().to_dict(orient="list")
 
     def _create_image_coords(self, image_coords: pd.DataFrame):
         return {name: (row["x"], row["y"]) for name, row in image_coords.iterrows()}
 
-    # def str_to_tensor(self, frames: str, angle: float) -> torch.Tensor:
-    #     angle_matrix = torch.ones((1, 48, 48), dtype=torch.float32) * (angle / 70)
-    #     matrix = torch.zeros((4, 48, 48), dtype=torch.float32)
-    #     for frame in frames.split("p")[1:]:
-    #         hold_id, color = frame.split("r")
-    #         hold_id, color = int(hold_id), int(color) - 12
-    #         coords = self.id_to_coord[hold_id]
-    #         matrix[color, coords[0], coords[1]] = 1
-    #     return torch.cat((matrix, angle_matrix), dim=0)
-
-    # def tensor_to_str(self, matrix: torch.Tensor) -> str:
-    #     angle = ((matrix[-1].mean() * 70 / 5).round() * 5).long().item()
-    #     matrix = matrix[:-1, :, :].round().long()
-    #     frames = []
-    #     counter = [0, 0, 0, 0]
-    #     for color, x, y in zip(*torch.where(matrix)):
-    #         counter[color] += 1
-    #         color, x, y = color.item(), x.item(), y.item()
-    #         # too many start/end holds
-    #         if counter[color] > 2 and color in [0, 2]:
-    #             continue
-    #         hold_id = self.coord_to_id[x, y]
-    #         # wrong hold position
-    #         if hold_id == 0:
-    #             continue
-    #         role = color + 12
-    #         frames.append((hold_id, role))
-    #     sorted_frames = sorted(frames, key=lambda x: x[0])
-    #     return ("".join([f"p{hold_id}r{role}" for hold_id, role in sorted_frames]), angle)
-
     def plot_climb(self, frames: str):
-        assert isinstance(frames, str), f"Input must be frames! Got {type(frames)}"
+        frames = frames.replace(" ", "")  # here the input takes no whitespace
         board_path = "figs/full_board_commercial.png"
         image = cv2.imread(board_path)
         try:
@@ -143,7 +113,7 @@ class Plotter:
                 if hold_type == str(15):  # feet
                     color = (255, 165, 0)
                 image = cv2.circle(image, self.image_coords[int(hold_id)], radius, color, thickness)
-        except Exception as e:
+        except Exception as e:  # FIXME
             pass
         return image
 
