@@ -3,4 +3,5 @@
 data/
 __*__
 wandb/
+kilter-gpt/
 test.ipynb

@@ -1,13 +1,10 @@
-import warnings
-
 import lightning as L
 import pandas as pd
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from lightning.pytorch.utilities.types import EVAL_DATALOADERS
 
-from ..utils import EncoderDecoder, Tokenizer
+from ..utils import Plotter, Tokenizer
 
 
 class CausalSelfAttentionHead(nn.Module):
@@ -142,16 +139,17 @@ class GPTModel(L.LightningModule):
         return self.shared_step(batch, "train")
 
     def generate_from_prompts(self):
-        prompts = torch.load("prompts.pt").to(self.device)
-        encdec = EncoderDecoder()
+        # TODO clean this up
+        prompts = torch.load("data/prompts.pt").to(self.device)
+        plotter = Plotter()
         tokenizer = Tokenizer(pd.read_csv("data/raw/gpt_subset.csv")["frames"])
         for temp in [0.1, 0.5, 0.7, 0.9]:
-            generated = self.generate(prompts, 64, temperature=temp)
+            generated = self.generate(prompts, 100, temperature=temp)
             text = tokenizer.decode_batch(generated)
             images = []
             for t in text:
                 t = t.split("[EOS]")[0].split("[BOS]")[-1].replace(" ", "").replace("[PAD]", "").replace("[UNK]", "")
-                images.append(encdec.plot_climb(t))
+                images.append(plotter.plot_climb(t))
             self.logger.log_image(key=f"temp_{temp}", images=images)
 
     def on_train_epoch_end(self):
@@ -162,10 +160,11 @@ class GPTModel(L.LightningModule):
         opt = torch.optim.AdamW(self.parameters(), lr=self.config.lr, weight_decay=self.config.wd)
         return [opt], []
 
-    def generate(self, prompts, max_tokens, temperature=0.7):
+    def generate(self, prompts: torch.Tensor, max_tokens: int, temperature: float = 0.7):
         """
         Generates text based on the provided prompts.
         Model determinism can be changed with temperature (range: [0, 1], higher means more unstable but creative predictions)
+        prompts have to be lef-padded tensors of shape (batch, context_len)
         """
         self.eval()
         context = prompts

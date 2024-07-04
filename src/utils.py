@@ -20,7 +20,7 @@ def shuffle_holds(climb: str) -> str:
     """Shuffle the holds in a climb"""
     holds = climb.split("p")[1:]
     np.random.shuffle(holds)
-    return " ".join(["p" + x for x in holds])
+    return "".join(["p" + x for x in holds])
 
 
 class Tokenizer:
