@@ -16,7 +16,7 @@ class KilterGPTDataset(Dataset):
     ):
         self.df = pd.read_csv(filename)
         if deduplicate:
-            self.df = self.df.drop_duplicates(subset=["frames"])
+            self.df = self.df.drop_duplicates("frames")
         self.tokenizer = self._get_tokenizer()
         self.context_len = context_len
         self.min_tokens = min_tokens
