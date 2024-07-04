@@ -112,6 +112,7 @@ class GPTModel(L.LightningModule):
     def __init__(self, config):
         super(GPTModel, self).__init__()
         # Model Architecture
+        self.save_hyperparameters()
         self.config = config
         self.model = GPT(self.config)
 

@@ -13,7 +13,7 @@ torch.set_float32_matmul_precision("medium")
 
 @dataclass
 class Config:
-    batch_size = 2048
+    batch_size = 1024
     epochs = 1000
     vocab_size = 550
     lr = 6e-4
