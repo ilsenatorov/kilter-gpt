@@ -1,10 +1,10 @@
 from typing import Iterable, Literal
 
 import cv2
-from matplotlib import pyplot as plt
 import numpy as np
 import pandas as pd
 import torch
+from matplotlib import pyplot as plt
 
 colors = torch.tensor(
     [
@@ -76,9 +76,13 @@ class Tokenizer:
         return res
 
     def encode(self, frames: str, angle: int = None, grade: str = None) -> torch.Tensor:
-        angle, grade = f"a{angle}" or "", f"f{grade}" or ""
-        split = [self.bos_token] + [angle] + [grade] + self.split_tokens(frames) + [self.eos_token]
-        return torch.tensor([self.encode_map[x] for x in split], dtype=torch.long)
+        tokens = [self.bos_token]
+        if self.angle and angle:
+            tokens.append(f"a{angle}")
+        if self.grade and grade:
+            tokens.append(f"f{grade}")
+        tokens += self.split_tokens(frames) + [self.eos_token]
+        return torch.tensor([self.encode_map[x] for x in tokens], dtype=torch.long)
 
     def encode_batch(self, frames: list[str]) -> list[torch.Tensor]:
         return [self.encode(x) for x in frames]
@@ -105,6 +109,8 @@ class Tokenizer:
 
 class Plotter:
     """Plots the selected holds onto the empty kilterboard. Requires df from `figs/` folder."""
+
+    # TODO FIXME currently has issues with footholds, probably need to regenerate the image_coords.csv
 
     def __init__(self):
         image_coords = pd.read_csv("figs/image_coords.csv", index_col=0)
