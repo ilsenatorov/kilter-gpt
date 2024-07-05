@@ -110,17 +110,13 @@ class Tokenizer:
 class Plotter:
     """Plots the selected holds onto the empty kilterboard. Requires df from `figs/` folder."""
 
-    # TODO FIXME currently has issues with footholds, probably need to regenerate the image_coords.csv
-
     def __init__(self):
-        image_coords = pd.read_csv("figs/image_coords.csv", index_col=0)
-        self.image_coords = self._create_image_coords(image_coords)
+        self.image_coords = self._create_image_coords(pd.read_csv("figs/image_coords.csv"))
 
     def _create_image_coords(self, image_coords: pd.DataFrame):
         return {name: (row["x"], row["y"]) for name, row in image_coords.iterrows()}
 
     def plot_climb(self, frames: str, return_fig: bool = False):
-        # FIXME currently has issues with footholds, check diff with old version
         frames = frames.replace(" ", "")  # here the input takes no whitespace
         board_path = "figs/full_board_commercial.png"
         image = cv2.imread(board_path)
@@ -141,7 +137,7 @@ class Plotter:
                     color = (255, 165, 0)
                 image = cv2.circle(image, self.image_coords[int(hold_id)], radius, color, thickness)
         except Exception as e:  # FIXME
-            pass
+            print(e)
         if return_fig:
             return plt.imshow(image)
         return image
