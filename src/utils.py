@@ -1,6 +1,7 @@
 from typing import Iterable, Literal
 
 import cv2
+from matplotlib import pyplot as plt
 import numpy as np
 import pandas as pd
 import torch
@@ -112,7 +113,8 @@ class Plotter:
     def _create_image_coords(self, image_coords: pd.DataFrame):
         return {name: (row["x"], row["y"]) for name, row in image_coords.iterrows()}
 
-    def plot_climb(self, frames: str) -> np.ndarray:
+    def plot_climb(self, frames: str, return_fig: bool = False):
+        # FIXME currently has issues with footholds, check diff with old version
         frames = frames.replace(" ", "")  # here the input takes no whitespace
         board_path = "figs/full_board_commercial.png"
         image = cv2.imread(board_path)
@@ -134,6 +136,8 @@ class Plotter:
                 image = cv2.circle(image, self.image_coords[int(hold_id)], radius, color, thickness)
         except Exception as e:  # FIXME
             pass
+        if return_fig:
+            return plt.imshow(image)
         return image
 
 
