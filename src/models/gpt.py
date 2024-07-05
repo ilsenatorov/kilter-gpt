@@ -139,6 +139,9 @@ class GPTModel(L.LightningModule):
     def training_step(self, batch, batch_idx):
         return self.shared_step(batch, "train")
 
+    def validation_step(self, batch, batch_idx):
+        return self.shared_step(batch, "val")
+
     def generate_from_prompts(self):
         # TODO clean this up
         prompts = torch.load("data/prompts.pt").to(self.device)
@@ -158,8 +161,16 @@ class GPTModel(L.LightningModule):
             self.generate_from_prompts()
 
     def configure_optimizers(self):
-        opt = torch.optim.AdamW(self.parameters(), lr=self.config.lr, weight_decay=self.config.wd)
-        return [opt], []
+        optimizer = torch.optim.AdamW(self.parameters(), lr=self.config.lr, weight_decay=self.config.wd)
+
+        scheduler_config = {
+            "scheduler": torch.optim.lr_scheduler.ReduceLROnPlateau(
+                optimizer, mode="min", factor=0.1, patience=5, verbose=True
+            ),
+            "interval": "epoch",
+            "monitor": "val_loss",
+        }
+        return {"optimizer": optimizer, "lr_scheduler": scheduler_config}
 
     def generate(self, prompts: torch.Tensor, max_tokens: int, temperature: float = 0.7):
         """

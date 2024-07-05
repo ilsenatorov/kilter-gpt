@@ -29,10 +29,14 @@ class KilterGPTDataset(Dataset):
 
     def __getitem__(self, idx):
         """Get a random contiguous sequence of tokens from the frames column. Pad left to context_len."""
-        t = self.tokenizer.encode(shuffle_holds(self.df.iloc[idx]["frames"]))
-        end = random.randint(self.min_tokens, t.size(0))
+        tokenized = self.tokenizer.encode(shuffle_holds(self.df.iloc[idx]["frames"]))
+        n = tokenized.size(0)
+        if n <= self.min_tokens:
+            end = n
+        else:
+            end = random.randint(self.min_tokens, n)
         start = max(0, end - self.context_len - 1)  # buffer start
-        buffer = t[start:end]
+        buffer = tokenized[start:end]
         x = buffer[:-1]
         y = buffer[1:]
         x = pad_to(x, self.context_len, self.tokenizer.encode_map[self.tokenizer.pad_token])
