@@ -17,20 +17,22 @@ torch.set_float32_matmul_precision("high")
 
 @dataclass
 class Config:
-    batch_size = 256
+    batch_size = 512
     epochs = 250
-    vocab_size = 550
+    vocab_size = 600
     lr = 1e-3
     wd = 1e-5
-    n_embed = 512
-    num_blocks = 8
-    num_heads = 8
+    n_embed = 128
+    num_blocks = 4
+    num_heads = 4
     head_size = n_embed // num_heads
     context_len = 64
     attn_drop_value = 0.2
     multihead_drop_value = 0.2
     ffn_drop_value = 0.2
     min_tokens = 10
+    angle = True
+    grade = True
 
 
 config = Config()
@@ -40,6 +42,8 @@ ds = KilterGPTDataset(
     context_len=config.context_len,
     min_tokens=config.min_tokens,
     deduplicate=True,
+    angle=config.angle,
+    grade=config.grade,
 )
 train, val = random_split(ds, [0.8, 0.2])
 
