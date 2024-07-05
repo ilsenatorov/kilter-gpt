@@ -3,6 +3,7 @@ import pandas as pd
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import os
 
 from ..utils import Plotter, Tokenizer
 
@@ -144,17 +145,18 @@ class GPTModel(L.LightningModule):
 
     def generate_from_prompts(self):
         # TODO clean this up
-        prompts = torch.load("data/prompts.pt").to(self.device)
-        plotter = Plotter()
-        tokenizer = Tokenizer(pd.read_csv("data/raw/gpt_subset.csv")["frames"])
-        for temp in [0.1, 0.5, 0.7, 0.9]:
-            generated = self.generate(prompts, 100, temperature=temp)
-            text = tokenizer.decode_batch(generated)
-            images = []
-            for t in text:
-                t = t.split("[EOS]")[0].split("[BOS]")[-1].replace(" ", "").replace("[PAD]", "").replace("[UNK]", "")
-                images.append(plotter.plot_climb(t))
-            self.logger.log_image(key=f"temp_{temp}", images=images)
+        if os.path.exists("data/prompts.pt"):
+            prompts = torch.load("data/prompts.pt").to(self.device)
+            plotter = Plotter()
+            tokenizer = Tokenizer(pd.read_csv("data/raw/gpt_subset.csv")["frames"])
+            for temp in [0.1, 0.5, 0.7, 0.9]:
+                generated = self.generate(prompts, 100, temperature=temp)
+                text = tokenizer.decode_batch(generated)
+                images = []
+                for t in text:
+                    t = t.split("[EOS]")[0].split("[BOS]")[-1].replace(" ", "").replace("[PAD]", "").replace("[UNK]", "")
+                    images.append(plotter.plot_climb(t))
+                self.logger.log_image(key=f"temp_{temp}", images=images)
 
     def on_train_epoch_end(self):
         if self.current_epoch % 25 == 0:
