@@ -24,16 +24,45 @@ def shuffle_holds(climb: str) -> str:
 
 
 class Tokenizer:
-    def __init__(self, data: Iterable[str]):
-        self.eos_token = "[EOS]"
-        self.bos_token = "[BOS]"
-        self.pad_token = "[PAD]"
-        self.unk_token = "[UNK]"
-        self.mask_token = "[MASK]"
-        self.data = data
-        self.pad_to = pad_to
-        self.encode_map = self._get_token_map()
+    eos_token = "[EOS]"
+    bos_token = "[BOS]"
+    pad_token = "[PAD]"
+    unk_token = "[UNK]"
+    mask_token = "[MASK]"
+
+    def __init__(self, encode_map: dict[str, int], angle: bool = False, grade: bool = False):
+        self.encode_map = encode_map
         self.decode_map = {v: k for k, v in self.encode_map.items()}
+        self.angle = angle
+        self.grade = grade
+
+    @staticmethod
+    def from_df(df: pd.DataFrame, angle: bool = False, grade: bool = False):
+        tokens = [
+            Tokenizer.bos_token,
+            Tokenizer.eos_token,
+            Tokenizer.pad_token,
+            Tokenizer.mask_token,
+            Tokenizer.unk_token,
+            "r12",
+            "r13",
+            "r14",
+            "r15",
+        ]
+        ## Add all unique tokens from the frames
+        for frame in df["frames"]:
+            for token in Tokenizer.split_tokens(frame):
+                if token not in tokens:
+                    tokens.append(token)
+        # Add angle and difficulty tokens
+        if angle:
+            for i in df["angle"].unique():
+                tokens.append(f"a{i}")
+        if grade:
+            for i in df["font_grade"].unique():
+                tokens.append(f"f{i}")
+        encode_map = {token: idx for idx, token in enumerate(tokens)}
+        return Tokenizer(encode_map, angle, grade)
 
     @staticmethod
     def split_tokens(frames: str) -> list[str]:
@@ -45,8 +74,9 @@ class Tokenizer:
             res += [f"p{hold}", f"r{color}"]
         return res
 
-    def encode(self, frames: str) -> torch.Tensor:
-        split = [self.bos_token] + self.split_tokens(frames) + [self.eos_token]
+    def encode(self, frames: str, angle: int = None, grade: str = None) -> torch.Tensor:
+        angle, grade = f"a{angle}" or "", f"f{grade}" or ""
+        split = [self.bos_token] + [angle] + [grade] + self.split_tokens(frames) + [self.eos_token]
         return torch.tensor([self.encode_map[x] for x in split], dtype=torch.long)
 
     def encode_batch(self, frames: list[str]) -> list[torch.Tensor]:
@@ -64,28 +94,16 @@ class Tokenizer:
     def decode_batch(self, x: Iterable[torch.Tensor]) -> list[str]:
         return [self.decode(y) for y in x]
 
-    def _get_token_map(self) -> dict[str, int]:
-        tokens = [
-            self.bos_token,
-            self.eos_token,
-            self.pad_token,
-            self.mask_token,
-            self.unk_token,
-            "r12",
-            "r13",
-            "r14",
-            "r15",
-        ]
-        for frame in self.data:
-            for token in self.split_tokens(frame):
-                if token not in tokens:
-                    tokens.append(token)
-        encode_map = {token: idx for idx, token in enumerate(tokens)}
-        return encode_map
+    def save(self, path: str):
+        torch.save(self, path)
+
+    @staticmethod
+    def load(path: str):
+        return torch.load(path)
 
 
 class Plotter:
-    """Plots the selected holds onto the empty kilterboard. Requires data from `figs/` folder."""
+    """Plots the selected holds onto the empty kilterboard. Requires df from `figs/` folder."""
 
     def __init__(self):
         image_coords = pd.read_csv("figs/image_coords.csv", index_col=0)
