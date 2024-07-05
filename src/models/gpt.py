@@ -1,9 +1,10 @@
+import os
+
 import lightning as L
 import pandas as pd
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import os
 
 from ..utils import Plotter, Tokenizer
 
@@ -145,6 +146,7 @@ class GPTModel(L.LightningModule):
 
     def generate_from_prompts(self):
         # TODO clean this up
+        return
         if os.path.exists("data/prompts.pt"):
             prompts = torch.load("data/prompts.pt").to(self.device)
             plotter = Plotter()
@@ -170,7 +172,7 @@ class GPTModel(L.LightningModule):
                 optimizer, mode="min", factor=0.1, patience=5, verbose=True
             ),
             "interval": "epoch",
-            "monitor": "val_loss",
+            "monitor": "val/loss",
         }
         return {"optimizer": optimizer, "lr_scheduler": scheduler_config}
 
