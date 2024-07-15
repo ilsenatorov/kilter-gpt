@@ -8,6 +8,7 @@ from torch.utils.data import DataLoader, random_split
 
 from src.data.datasets import KilterGPTDataset
 from src.models.gpt import GPTModel
+from src.utils import str_to_bool
 
 L.seed_everything(42)
 torch.set_float32_matmul_precision("high")
