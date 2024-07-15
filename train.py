@@ -62,7 +62,7 @@ trainer = Trainer(
     logger=[WandbLogger(project="kilter-gpt", config=config, log_model=True)],
     precision="bf16-mixed",
     callbacks=[
-        L.pytorch.callbacks.EarlyStopping(monitor="val/loss", patience=30),
+        L.pytorch.callbacks.EarlyStopping(monitor="val/loss", patience=10),
         L.pytorch.callbacks.ModelCheckpoint(monitor="val/loss", mode="min"),
     ],
 )

@@ -17,9 +17,8 @@ Simply running the `train.py` script will start training the model. You can adju
 
 ## TODO
 
-* Improve tokenizer functionality, move all the tokenization logic to the tokenizer class
+* Improve tokenizer functionality, move all the tokenization/padding logic to the tokenizer class
 * Add some automatic evaluation metrics (similarity to real data, consistency, etc.)
-* Better config handling
 * Convert dataset to hf dataset?
 * Add a script to convert the model to onnx?
 * Plot UMAP of token embeddings to check for logical clustering
@@ -30,6 +29,7 @@ Simply running the `train.py` script will start training the model. You can adju
 * ~~Tokenize angle/difficulty and add them to the model~~
 * ~~Log the model to wandb~~
 * ~~Add a script/notebook to generate climbs from the model~~
+* ~~Better config handling~~
 
 ## Permutation invariant issues
 
