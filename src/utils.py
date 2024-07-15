@@ -111,10 +111,10 @@ class Plotter:
     """Plots the selected holds onto the empty kilterboard. Requires df from `figs/` folder."""
 
     def __init__(self):
-        self.image_coords = self._create_image_coords(pd.read_csv("figs/image_coords.csv"))
+        self.image_coords = self._create_image_coords(pd.read_csv("figs/image_coords.csv", index_col=0))
 
     def _create_image_coords(self, image_coords: pd.DataFrame):
-        return {name: (row["x"], row["y"]) for name, row in image_coords.iterrows()}
+        return {name: (row["img_x"], row["img_y"]) for name, row in image_coords.iterrows()}
 
     def plot_climb(self, frames: str, return_fig: bool = False):
         frames = frames.replace(" ", "")  # here the input takes no whitespace
