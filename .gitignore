@@ -1,5 +1,6 @@
 .*
 !.gitignore
+!.gitattributes
 !.pre-commit-config.yaml
 data/*
 !data/db.sqlite3
