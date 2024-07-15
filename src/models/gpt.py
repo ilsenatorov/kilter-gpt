@@ -1,9 +1,10 @@
+import os
+
 import lightning as L
 import pandas as pd
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import os
 
 from ..utils import Plotter, Tokenizer
 
@@ -144,19 +145,16 @@ class GPTModel(L.LightningModule):
         return self.shared_step(batch, "val")
 
     def generate_from_prompts(self):
-        # TODO clean this up
         if os.path.exists("data/prompts.pt"):
             prompts = torch.load("data/prompts.pt").to(self.device)
             plotter = Plotter()
-            tokenizer = Tokenizer(pd.read_csv("data/raw/gpt_subset.csv")["frames"])
+            tokenizer = Tokenizer.load("data/tokenizer.pt")
             for temp in [0.1, 0.5, 0.7, 0.9]:
                 generated = self.generate(prompts, 100, temperature=temp)
-                text = tokenizer.decode_batch(generated)
-                images = []
-                for t in text:
-                    t = t.split("[EOS]")[0].split("[BOS]")[-1].replace(" ", "").replace("[PAD]", "").replace("[UNK]", "")
-                    images.append(plotter.plot_climb(t))
-                self.logger.log_image(key=f"temp_{temp}", images=images)
+                texts = [tokenizer.clean(tokenizer.decode(x)) for x in generated]
+                images = [plotter.plot_climb(x[0]) for x in texts]
+                captions = [f"Angle: {x[1]}, Grade: {x[2]}, Temp: {temp}" for x in texts]
+                self.logger.log_image(key=f"temp_{temp}", images=images, caption=captions)
 
     def on_train_epoch_end(self):
         if self.current_epoch % 25 == 0:
@@ -170,7 +168,7 @@ class GPTModel(L.LightningModule):
                 optimizer, mode="min", factor=0.1, patience=5, verbose=True
             ),
             "interval": "epoch",
-            "monitor": "val_loss",
+            "monitor": "val/loss",
         }
         return {"optimizer": optimizer, "lr_scheduler": scheduler_config}
 

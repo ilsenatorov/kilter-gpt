@@ -1,8 +1,11 @@
 .*
 !.gitignore
+!.gitattributes
 !.pre-commit-config.yaml
 data/*
+!data/db.sqlite3
 __*__
 wandb/
 kilter-gpt/
 test.ipynb
+artifacts/*
