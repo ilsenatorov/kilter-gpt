@@ -4,7 +4,7 @@ Repo for training a model that generates Kilterboard climbs.
 
 ## Installation
 
-`pip3 install torch torchvision torchaudio wandb lightning plotly pandas numpy matplotlib ipykernel jupyter`
+`pip3 install torch torchvision torchaudio wandb lightning plotly pandas numpy matplotlib ipykernel jupyter beartype`
 
 ## Data
 
@@ -35,7 +35,6 @@ Simply running the `train.py` script will start training the model. You can adju
 
 The model is currently not permutation invariant, meaning that the order of the input tokens matters.
 This is not ideal for the task of generating climbing routes, where the order of the holds is not important.
-
 
 ## Design choices and reasonings
 

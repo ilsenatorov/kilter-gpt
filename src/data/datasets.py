@@ -12,7 +12,7 @@ class KilterGPTDataset(Dataset):
         filename,
         context_len: int = 32,  # 1 hold == 2 tokens
         min_tokens: int = 5,  # smallest number of tokens in a sequence
-        deduplicate: bool = True,
+        deduplicate: bool = False,
         shuffle_tokens: bool = True,
         angle: bool = False,
         grade: bool = False,

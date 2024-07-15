@@ -37,6 +37,14 @@ class Tokenizer:
         self.angle = angle
         self.grade = grade
 
+    @property
+    def angle_tokens(self):
+        return [x for x in self.encode_map if x.startswith("a")]
+
+    @property
+    def grade_tokens(self):
+        return [x for x in self.encode_map if x.startswith("f")]
+
     @staticmethod
     def from_df(df: pd.DataFrame, angle: bool = False, grade: bool = False):
         tokens = [
@@ -87,7 +95,7 @@ class Tokenizer:
     def encode_batch(self, frames: list[str]) -> list[torch.Tensor]:
         return [self.encode(x) for x in frames]
 
-    def decode(self, x: torch.Tensor) -> list:
+    def decode(self, x: torch.Tensor, clean: bool = True) -> list:
         decoded = []
         for token in x.tolist():
             if token in self.decode_map:
@@ -96,8 +104,24 @@ class Tokenizer:
                 decoded.append(self.unk_token)
         return decoded
 
-    def decode_batch(self, x: Iterable[torch.Tensor]) -> list[str]:
+    def decode_batch(self, x: Iterable[torch.Tensor]) -> list:
         return [self.decode(y) for y in x]
+
+    def clean(self, x: list[str]):
+        """Remove special tokens from the decoded text"""
+        angle, grade = None, None
+        frames = ""
+        start = x.index(self.bos_token)
+        end = x.index(self.eos_token)
+        x = x[start + 1 : end]
+        for i in x:
+            if i.startswith("a"):
+                angle = i
+            elif i.startswith("f"):
+                grade = i
+            elif i.startswith("p") or i.startswith("r"):
+                frames += i
+        return frames, angle, grade
 
     def save(self, path: str):
         torch.save(self, path)
@@ -105,6 +129,9 @@ class Tokenizer:
     @staticmethod
     def load(path: str):
         return torch.load(path)
+
+    def pad(self, x: torch.Tensor, size: int, where: Literal["left", "right"] = "left"):
+        return pad_to(x, size, self.encode_map[self.pad_token], where=where)
 
 
 class Plotter:
@@ -119,7 +146,8 @@ class Plotter:
     def plot_climb(self, frames: str, return_fig: bool = False):
         frames = frames.replace(" ", "")  # here the input takes no whitespace
         board_path = "figs/full_board_commercial.png"
-        image = cv2.imread(board_path)
+        image = cv2.imread(board_path, cv2.IMREAD_GRAYSCALE)
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)  # Convert to RGB
         try:
             for hold in frames.split("p")[1:]:
                 hold_id, hold_type = hold.split("r")
@@ -157,3 +185,15 @@ def pad_to(
         left_pad = 0
         right_pad = size - tensor.size(0)
     return torch.nn.functional.pad(tensor, (left_pad, right_pad), value=pad_value)
+
+
+def str_to_bool(value: str) -> bool:
+    """Command line inputs that are bools."""
+    if isinstance(value, bool):
+        return value
+    if value.lower() in ("yes", "true", "t", "y", "1"):
+        return True
+    elif value.lower() in ("no", "false", "f", "n", "0"):
+        return False
+    else:
+        raise ValueError("Boolean value expected.")

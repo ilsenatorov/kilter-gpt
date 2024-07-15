@@ -8,6 +8,7 @@ from torch.utils.data import DataLoader, random_split
 
 from src.data.datasets import KilterGPTDataset
 from src.models.gpt import GPTModel
+from src.utils import Tokenizer, pad_to, str_to_bool
 
 L.seed_everything(42)
 torch.set_float32_matmul_precision("high")
@@ -27,9 +28,9 @@ parser.add_argument("--context_len", type=int, default=64)
 parser.add_argument("--attn_drop_value", type=float, default=0.2)
 parser.add_argument("--multihead_drop_value", type=float, default=0.2)
 parser.add_argument("--ffn_drop_value", type=float, default=0.2)
-parser.add_argument("--min_tokens", type=int, default=20)
-parser.add_argument("--angle", action="store_true")
-parser.add_argument("--grade", action="store_true")
+parser.add_argument("--min_tokens", type=int, default=10)
+parser.add_argument("--angle", type=str_to_bool, default=True)
+parser.add_argument("--grade", type=str_to_bool, default=True)
 config = parser.parse_args()
 
 
@@ -47,6 +48,13 @@ train_dl = DataLoader(train, batch_size=config.batch_size, shuffle=True, pin_mem
 val_dl = DataLoader(val, batch_size=config.batch_size, shuffle=True, pin_memory=True, num_workers=8)
 
 model = GPTModel(config)
+
+# prompts = [
+#     ("p1185r12p1198r12", 40, "7b"),
+#     ("p1128r12p1391r14", 45, "7a"),
+#     ("p1315r13p1385r14", 30, "6a"),
+#     ("p1157r15p1203r13p1223r13p1270r13", 30, "6b"),
+# ]
 
 trainer = Trainer(
     devices=-1,
