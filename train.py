@@ -17,7 +17,6 @@ torch.set_float32_matmul_precision("high")
 parser = ArgumentParser()
 parser.add_argument("--batch_size", type=int, default=512)
 parser.add_argument("--epochs", type=int, default=250)
-parser.add_argument("--vocab_size", type=int, default=600)
 parser.add_argument("--lr", type=float, default=1e-3)
 parser.add_argument("--wd", type=float, default=1e-5)
 parser.add_argument("--n_embed", type=int, default=512)
@@ -42,6 +41,8 @@ ds = KilterGPTDataset(
     deduplicate=True,
     angle=config.angle,
     grade=config.grade,
+    grade_mask_rate=config.grade_mask_rate,
+    label_smoothing=config.label_smoothing,
 )
 
 prompts = [
@@ -53,6 +54,7 @@ prompts = [
 torch.save(prompts, "data/prompts.pt")
 
 config.pad_token_id = ds.tokenizer.pad_token_id
+config.vocab_size = len(ds.tokenizer.encode_map)
 ds.tokenizer.save("data/tokenizer.pt")
 train, val = random_split(ds, [0.8, 0.2])
 
