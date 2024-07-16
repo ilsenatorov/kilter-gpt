@@ -43,8 +43,28 @@ class Tokenizer:
         return [x for x in self.encode_map if x.startswith("a")]
 
     @property
+    def angle_token_ids(self):
+        return torch.tensor([self.encode_map[x] for x in self.angle_tokens])
+
+    @property
     def grade_tokens(self):
         return [x for x in self.encode_map if x.startswith("f")]
+
+    @property
+    def grade_token_ids(self):
+        return torch.tensor([self.encode_map[x] for x in self.grade_tokens])
+
+    @property
+    def special_token_ids(self):
+        return torch.tensor(
+            [
+                self.pad_token_id,
+                self.bos_token_id,
+                self.eos_token_id,
+                self.unk_token_id,
+                self.mask_token_id,
+            ]
+        )
 
     def _set_special_token_ids(self):
         self.pad_token_id = self.encode_map[self.pad_token]

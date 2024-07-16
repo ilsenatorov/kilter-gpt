@@ -31,6 +31,7 @@ parser.add_argument("--ffn_drop_value", type=float, default=0.2)
 parser.add_argument("--min_tokens", type=int, default=10)
 parser.add_argument("--angle", type=str_to_bool, default=True)
 parser.add_argument("--grade", type=str_to_bool, default=True)
+parser.add_argument("--grade_mask_rate", type=float, default=0.0)
 config = parser.parse_args()
 
 
