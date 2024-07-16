@@ -46,7 +46,7 @@ class Tokenizer:
         return [x for x in self.encode_map if x.startswith("f")]
 
     @staticmethod
-    def from_df(df: pd.DataFrame, angle: bool = False, grade: bool = False):
+    def from_df(df: pd.DataFrame, angle: bool = False, grade: bool = False) -> "Tokenizer":
         tokens = [
             Tokenizer.bos_token,
             Tokenizer.eos_token,
@@ -83,36 +83,53 @@ class Tokenizer:
             res += [f"p{hold}", f"r{color}"]
         return res
 
-    def encode(self, frames: str, angle: int = None, grade: str = None) -> torch.Tensor:
-        tokens = [self.bos_token]
+    def encode(
+        self,
+        frames: str,
+        angle: int = None,
+        grade: str = None,
+        bos: bool = True,
+        eos: bool = True,
+        pad: int = 0,
+    ) -> torch.Tensor:
+        tokens = []
+        if bos:
+            tokens.append(self.bos_token)
         if self.angle and angle:
             tokens.append(f"a{angle}")
         if self.grade and grade:
             tokens.append(f"f{grade}")
-        tokens += self.split_tokens(frames) + [self.eos_token]
-        return torch.tensor([self.encode_map[x] for x in tokens], dtype=torch.long)
+        tokens += self.split_tokens(frames)
+        if eos:
+            tokens.append(self.eos_token)
+        t = torch.tensor([self.encode_map[x] for x in tokens], dtype=torch.long)
+        if pad:
+            t = self.pad(t, pad)
+        return t
 
     def encode_batch(self, frames: list[str]) -> list[torch.Tensor]:
         return [self.encode(x) for x in frames]
 
-    def decode(self, x: torch.Tensor, clean: bool = True) -> list:
+    def decode(self, x: torch.Tensor, clean: bool = False) -> list | tuple:
         decoded = []
         for token in x.tolist():
             if token in self.decode_map:
                 decoded.append(self.decode_map[token])
             else:
                 decoded.append(self.unk_token)
+        if clean:
+            return self.clean(decoded)
         return decoded
 
-    def decode_batch(self, x: Iterable[torch.Tensor]) -> list:
-        return [self.decode(y) for y in x]
+    def decode_batch(self, x: Iterable[torch.Tensor], clean: bool = False) -> list | tuple:
+        return [self.decode(y, clean) for y in x]
 
-    def clean(self, x: list[str]):
+    def clean(self, x: list[str]) -> tuple:
         """Remove special tokens from the decoded text"""
         angle, grade = None, None
         frames = ""
-        start = x.index(self.bos_token)
-        end = x.index(self.eos_token)
+        start = x.index(self.bos_token) if self.bos_token in x else 0
+        end = x.index(self.eos_token) if self.eos_token in x else len(x)
         x = x[start + 1 : end]
         for i in x:
             if i.startswith("a"):
@@ -127,11 +144,14 @@ class Tokenizer:
         torch.save(self, path)
 
     @staticmethod
-    def load(path: str):
+    def load(path: str) -> "Tokenizer":
         return torch.load(path)
 
     def pad(self, x: torch.Tensor, size: int, where: Literal["left", "right"] = "left"):
         return pad_to(x, size, self.encode_map[self.pad_token], where=where)
+
+    def __repr__(self):
+        return f"Tokenizer(angle={self.angle}, grade={self.grade})"
 
 
 class Plotter:

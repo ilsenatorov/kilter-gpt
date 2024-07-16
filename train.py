@@ -42,19 +42,13 @@ ds = KilterGPTDataset(
     angle=config.angle,
     grade=config.grade,
 )
+ds.tokenizer.save("data/tokenizer.pt")
 train, val = random_split(ds, [0.8, 0.2])
 
 train_dl = DataLoader(train, batch_size=config.batch_size, shuffle=True, pin_memory=True, num_workers=8)
 val_dl = DataLoader(val, batch_size=config.batch_size, shuffle=True, pin_memory=True, num_workers=8)
 
 model = GPTModel(config)
-
-# prompts = [
-#     ("p1185r12p1198r12", 40, "7b"),
-#     ("p1128r12p1391r14", 45, "7a"),
-#     ("p1315r13p1385r14", 30, "6a"),
-#     ("p1157r15p1203r13p1223r13p1270r13", 30, "6b"),
-# ]
 
 trainer = Trainer(
     devices=-1,

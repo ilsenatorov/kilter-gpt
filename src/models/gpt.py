@@ -13,7 +13,7 @@ class CausalSelfAttentionHead(nn.Module):
     def __init__(self, config):
         super(CausalSelfAttentionHead, self).__init__()
         self.config = config
-
+        self.head_size = config.head_size
         self.query = nn.Linear(config.n_embed, config.head_size, bias=False)
         self.key = nn.Linear(config.n_embed, config.head_size, bias=False)
         self.value = nn.Linear(config.n_embed, config.head_size, bias=False)
@@ -29,7 +29,7 @@ class CausalSelfAttentionHead(nn.Module):
 
         # Compute Attention scores
         # (B, C, head_size) bmm (B, head_size, C) -> (B, C, C)
-        attn_weight = torch.div(torch.bmm(q, k.permute(0, 2, 1)), self.config.head_size)
+        attn_weight = torch.div(torch.bmm(q, k.permute(0, 2, 1)), self.head_size)
         attn_weight = attn_weight.masked_fill(self.tril[:C, :C] == 0, float("-inf"))
         attn_weight = F.softmax(attn_weight, dim=-1)
         attn_weight = self.attn_drop(attn_weight)
@@ -86,7 +86,6 @@ class GPTBlock(nn.Module):
 class GPT(L.LightningModule):
     def __init__(self, config):
         super(GPT, self).__init__()
-        self.save_hyperparameters()
         self.config = config
         # Init layers and stuff
         self.tok_embedding = nn.Embedding(config.vocab_size, config.n_embed)
@@ -95,6 +94,12 @@ class GPT(L.LightningModule):
         self.lm_head = nn.Linear(config.n_embed, config.vocab_size)
 
     def forward(self, x):
+        x = self.embed(x)
+        # And finally pass it through the final layer to get the logits
+        logits = self.lm_head(x)
+        return logits
+
+    def embed(self, x):
         # Input is just tokenized text of 'B' batches, each 'C' context length long
         B, C = x.shape
         # First we apply the token embedding -> tok_emb (B, C, V)
@@ -105,9 +110,7 @@ class GPT(L.LightningModule):
         x = tok_emb + pos_emb
         # Then we pass the input through all the GPT blocks
         x = self.blocks(x)
-        # And finally pass it through the final layer to get the logits
-        logits = self.lm_head(x)
-        return logits
+        return x
 
 
 class GPTModel(L.LightningModule):
@@ -172,19 +175,23 @@ class GPTModel(L.LightningModule):
         }
         return {"optimizer": optimizer, "lr_scheduler": scheduler_config}
 
+    @torch.jit.export
     def generate(self, prompts: torch.Tensor, max_tokens: int, temperature: float = 0.7):
         """
         Generates text based on the provided prompts.
         Model determinism can be changed with temperature (range: [0, 1], higher means more unstable but creative predictions)
-        prompts have to be lef-padded tensors of shape (batch, context_len)
+        prompts have to be left-padded tensors of shape (batch, context_len)
         """
-        self.eval()
+        context_len = prompts.shape[1]
         context = prompts
         for _ in range(max_tokens):
-            context = prompts[:, -self.config.context_len :]
+            context = prompts[:, -context_len:]
             logits = self.forward(context)  # (batch, context_len, vocab_size)
             logits = logits[:, -1, :] / temperature
             logit_probs = nn.functional.softmax(logits, dim=-1)
             next_prompt = torch.multinomial(logit_probs, num_samples=1)
             prompts = torch.cat((prompts, next_prompt), dim=1)
         return prompts
+
+    def embed(self, prompts: torch.Tensor):
+        return self.model.embed(prompts)
