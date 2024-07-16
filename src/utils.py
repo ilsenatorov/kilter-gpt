@@ -43,6 +43,22 @@ class Tokenizer:
         return [x for x in self.encode_map if x.startswith("a")]
 
     @property
+    def hold_tokens(self):
+        return [x for x in self.encode_map if x.startswith("p")]
+
+    @property
+    def hold_token_ids(self):
+        return torch.tensor([self.encode_map[x] for x in self.hold_tokens])
+
+    @property
+    def color_tokens(self):
+        return [x for x in self.encode_map if x.startswith("r")]
+
+    @property
+    def color_token_ids(self):
+        return torch.tensor([self.encode_map[x] for x in self.color_tokens])
+
+    @property
     def angle_token_ids(self):
         return torch.tensor([self.encode_map[x] for x in self.angle_tokens])
 
@@ -134,9 +150,6 @@ class Tokenizer:
         if pad:
             t = self.pad(t, pad)
         return t
-
-    def encode_batch(self, frames: list[str]) -> list[torch.Tensor]:
-        return [self.encode(x) for x in frames]
 
     def decode(self, x: torch.Tensor, clean: bool = False) -> list | tuple:
         decoded = []

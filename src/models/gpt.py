@@ -124,7 +124,10 @@ class GPTModel(L.LightningModule):
     def get_loss(self, logits, targets):
         B, C, V = logits.shape
         logits = logits.view(B * C, V)
-        targets = targets.view(B * C)
+        if len(targets.size()) == 2:
+            targets = targets.view(B * C)
+        else:
+            targets = targets.view(B * C, V)
         loss = nn.functional.cross_entropy(logits, targets)
         return loss
 
@@ -149,12 +152,15 @@ class GPTModel(L.LightningModule):
 
     def generate_from_prompts(self):
         if os.path.exists("data/prompts.pt"):
-            prompts = torch.load("data/prompts.pt").to(self.device)
+            prompts = torch.load("data/prompts.pt")
             plotter = Plotter()
             tokenizer = Tokenizer.load("data/tokenizer.pt")
-            for temp in [0.1, 0.5, 0.7, 0.9]:
-                generated = self.generate(prompts, 100, temperature=temp)
-                texts = [tokenizer.clean(tokenizer.decode(x)) for x in generated]
+            tokenized_prompts = torch.stack(
+                [tokenizer.encode(*x, pad=self.config.context_len, eos=False) for x in prompts]
+            ).to(self.device)
+            for temp in [0.01, 0.1, 0.3, 0.5]:
+                generated = self.generate(tokenized_prompts, 70, temperature=temp)
+                texts = [tokenizer.decode(x, clean=True) for x in generated]
                 images = [plotter.plot_climb(x[0]) for x in texts]
                 captions = [f"Angle: {x[1]}, Grade: {x[2]}, Temp: {temp}" for x in texts]
                 self.logger.log_image(key=f"temp_{temp}", images=images, caption=captions)
@@ -176,7 +182,7 @@ class GPTModel(L.LightningModule):
         return {"optimizer": optimizer, "lr_scheduler": scheduler_config}
 
     @torch.jit.export
-    def generate(self, prompts: torch.Tensor, max_tokens: int, temperature: float = 0.7):
+    def generate(self, prompts: torch.Tensor, max_tokens: int, temperature: float = 0.2):
         """
         Generates text based on the provided prompts.
         Model determinism can be changed with temperature (range: [0, 1], higher means more unstable but creative predictions)

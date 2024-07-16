@@ -23,7 +23,6 @@ parser.add_argument("--wd", type=float, default=1e-5)
 parser.add_argument("--n_embed", type=int, default=512)
 parser.add_argument("--num_blocks", type=int, default=8)
 parser.add_argument("--num_heads", type=int, default=8)
-parser.add_argument("--head_size", type=int, default=512 // 8)
 parser.add_argument("--context_len", type=int, default=64)
 parser.add_argument("--attn_drop_value", type=float, default=0.2)
 parser.add_argument("--multihead_drop_value", type=float, default=0.2)
@@ -32,8 +31,9 @@ parser.add_argument("--min_tokens", type=int, default=10)
 parser.add_argument("--angle", type=str_to_bool, default=True)
 parser.add_argument("--grade", type=str_to_bool, default=True)
 parser.add_argument("--grade_mask_rate", type=float, default=0.0)
+parser.add_argument("--label_smoothing", type=str_to_bool, default=False)
 config = parser.parse_args()
-
+config.head_size = config.n_embed // config.num_heads
 
 ds = KilterGPTDataset(
     "data/raw/climbs.csv",
@@ -43,6 +43,15 @@ ds = KilterGPTDataset(
     angle=config.angle,
     grade=config.grade,
 )
+
+prompts = [
+    ("p1136r12", 40, "6a"),
+    ("p1136r12p1221r13", 40, "6a"),
+    ("p1136r12p1221r13p1453r15", 40, "7a"),
+    ("p1136r12p1221r13p1453r15p1393r14", 40, "7a"),
+]
+torch.save(prompts, "data/prompts.pt")
+
 config.pad_token_id = ds.tokenizer.pad_token_id
 ds.tokenizer.save("data/tokenizer.pt")
 train, val = random_split(ds, [0.8, 0.2])
