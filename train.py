@@ -42,6 +42,7 @@ ds = KilterGPTDataset(
     angle=config.angle,
     grade=config.grade,
 )
+config.pad_token_id = ds.tokenizer.pad_token_id
 ds.tokenizer.save("data/tokenizer.pt")
 train, val = random_split(ds, [0.8, 0.2])
 

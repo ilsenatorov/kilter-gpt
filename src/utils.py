@@ -36,6 +36,7 @@ class Tokenizer:
         self.decode_map = {v: k for k, v in self.encode_map.items()}
         self.angle = angle
         self.grade = grade
+        self._set_special_token_ids()
 
     @property
     def angle_tokens(self):
@@ -44,6 +45,13 @@ class Tokenizer:
     @property
     def grade_tokens(self):
         return [x for x in self.encode_map if x.startswith("f")]
+
+    def _set_special_token_ids(self):
+        self.pad_token_id = self.encode_map[self.pad_token]
+        self.bos_token_id = self.encode_map[self.bos_token]
+        self.eos_token_id = self.encode_map[self.eos_token]
+        self.unk_token_id = self.encode_map[self.unk_token]
+        self.mask_token_id = self.encode_map[self.mask_token]
 
     @staticmethod
     def from_df(df: pd.DataFrame, angle: bool = False, grade: bool = False) -> "Tokenizer":

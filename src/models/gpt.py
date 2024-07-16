@@ -88,7 +88,7 @@ class GPT(L.LightningModule):
         super(GPT, self).__init__()
         self.config = config
         # Init layers and stuff
-        self.tok_embedding = nn.Embedding(config.vocab_size, config.n_embed)
+        self.tok_embedding = nn.Embedding(config.vocab_size, config.n_embed, padding_idx=config.pad_token_id)
         self.pos_embedding = nn.Embedding(config.context_len, config.n_embed)
         self.blocks = nn.Sequential(*[GPTBlock(config) for _ in range(config.num_blocks)])
         self.lm_head = nn.Linear(config.n_embed, config.vocab_size)
