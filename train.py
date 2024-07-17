@@ -32,7 +32,6 @@ parser.add_argument("--grade", type=str_to_bool, default=True)
 parser.add_argument("--grade_mask_rate", type=float, default=0.0)
 parser.add_argument("--label_smoothing", type=str_to_bool, default=False)
 config = parser.parse_args()
-config.head_size = config.n_embed // config.num_heads
 
 ds = KilterGPTDataset(
     "data/raw/climbs.csv",
@@ -53,6 +52,7 @@ prompts = [
 ]
 torch.save(prompts, "data/prompts.pt")
 
+config.head_size = config.n_embed // config.num_heads
 config.pad_token_id = ds.tokenizer.pad_token_id
 config.vocab_size = len(ds.tokenizer.encode_map)
 ds.tokenizer.save("data/tokenizer.pt")

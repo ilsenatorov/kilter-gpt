@@ -12,7 +12,7 @@ from PIL import Image
 from src.utils import Plotter
 
 # Sample Data (replace with your DataFrame)
-df = pd.read_csv("dash.csv")
+df = pd.read_csv("dash_generated.csv")
 plotter = Plotter()
 # Sample Image Frames (replace with your image loading logic)
 
@@ -51,7 +51,7 @@ def display_image(clickData):
         buffer = io.BytesIO()
         img.save(buffer, format="PNG")
         encoded_image = base64.b64encode(buffer.getvalue()).decode("utf-8")
-        text = f"{row['name']} by {row['setter_username']}, {row['font_grade']} @ {row['angle']}"
+        text = f"{row['name']}, {row['font_grade']} @ {row['angle']}"
         return f"data:image/png;base64,{encoded_image}", text
 
     return "", ""
@@ -64,12 +64,12 @@ def update_scatter(clickData):
             go.Scatter(
                 x=df["x_gpt"],
                 y=df["y_gpt"],
-                marker_color=df["difficulty_average"],
+                marker_color=df["temp"],
                 marker=dict(colorscale="Viridis", opacity=0.9, size=4),
                 # marker_symbol="x",
                 mode="markers",
-                hovertemplate="<b>Name: %{customdata[0]}</b><br>Setter: %{customdata[1]}<br>Grade: %{customdata[2]}<br>Angle: %{customdata[3]}",  # Add this line
-                customdata=df[["name", "setter_username", "angle", "font_grade"]].values,  # Add this line
+                hovertemplate="<b>Name: %{customdata[0]}</b><br>Grade: %{customdata[1]}<br>Angle: %{customdata[2]}<br>Temp: %{customdata[3]}",  # Add this line
+                customdata=df[["name", "angle", "font_grade", "temp"]].values,  # Add this line
             )
         ],
         "layout": go.Layout(
