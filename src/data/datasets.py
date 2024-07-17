@@ -11,13 +11,13 @@ class KilterGPTDataset(Dataset):
     def __init__(
         self,
         filename,
-        context_len: int = 32,  # 1 hold == 2 tokens
+        context_len: int = 64,  # 1 hold == 2 tokens
         min_tokens: int = 5,  # smallest number of tokens in a sequence
         shuffle_tokens: bool = True,
-        angle: bool = False,
-        grade: bool = False,
+        angle: bool = True,
+        grade: bool = True,
+        label_smoothing: bool = True,
         grade_mask_rate: float = 0.0,
-        label_smoothing: bool = False,
     ):
         self.context_len = context_len
         self.min_tokens = min_tokens
@@ -65,14 +65,13 @@ class KilterGPTDataset(Dataset):
             x = self.mask_grade(x)
         return x, y
 
-    def _create_smoothed_labels(self, y: torch.LongTensor, correct_set) -> torch.FloatTensor:
+    def _create_smoothed_labels(self, y: torch.LongTensor, correct_set: torch.Tensor) -> torch.FloatTensor:
         """If the last token is a hold, smooth labels for all remaining holds."""
-        smoothed_labels = torch.zeros((self.context_len, len(self.tokenizer.encode_map)), dtype=torch.float32)
-        smoothed_labels[torch.arange(self.context_len), y] = 1.0
+        smooth_labels = torch.nn.functional.one_hot(y, num_classes=len(self.tokenizer.encode_map)).to(torch.float32)
         if y[-1].item() in self.tokenizer.hold_token_ids:
             if correct_set.size(0) > 0:
-                smoothed_labels[-1, correct_set] = 1.0
-        return smoothed_labels
+                smooth_labels[-1, correct_set] = 1.0
+        return smooth_labels
 
     def _get_correct_set(self, tokenized: torch.LongTensor, end: int):
         """Get the set of correct tokens for the last token in the sequence."""

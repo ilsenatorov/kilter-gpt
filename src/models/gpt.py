@@ -6,6 +6,7 @@ import pandas as pd
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torchmetrics as metrics
 
 from ..utils import Plotter, Tokenizer
 
@@ -126,11 +127,14 @@ class GPTModel(L.LightningModule):
     def get_loss(self, logits, targets):
         B, C, V = logits.shape
         logits = logits.view(B * C, V)
-        if len(targets.size()) == 2:
+        if len(targets.size()) == 2:  # If targets are class labels
             targets = targets.view(B * C)
-        else:
+            mask = targets != self.tokenizer.pad_token_id
+            loss = nn.functional.cross_entropy(logits[mask], targets[mask])
+        else:  # if targets are class probabilities
             targets = targets.view(B * C, V)
-        loss = nn.functional.cross_entropy(logits, targets)
+            mask = targets[:, self.tokenizer.pad_token_id] != 1
+            loss = nn.functional.binary_cross_entropy_with_logits(logits[mask], targets[mask])
         return loss
 
     def forward(self, x):
@@ -173,7 +177,11 @@ class GPTModel(L.LightningModule):
 
         scheduler_config = {
             "scheduler": torch.optim.lr_scheduler.ReduceLROnPlateau(
-                optimizer, mode="min", factor=0.1, patience=5, verbose=True
+                optimizer,
+                mode="min",
+                factor=0.1,
+                patience=10,
+                verbose=True,
             ),
             "interval": "epoch",
             "monitor": "val/loss",
@@ -197,7 +205,7 @@ class GPTModel(L.LightningModule):
             prompts = torch.cat((prompts, next_prompt), dim=1)
         return prompts
 
-    def generate_single(self, prompt: torch.Tensor, temperature: float = 0.2):
+    def generate_single(self, prompt: torch.Tensor, temperature: float = 0.2) -> torch.Tensor:
         """Generate until EOS token is reached (not batched)"""
         assert prompt.size() == (1, self.config.context_len), "Prompt shape must be (1, context_len)"
         context_len = prompt.shape[1]
@@ -214,7 +222,13 @@ class GPTModel(L.LightningModule):
                 break
         return prompt
 
-    def generate_from_string(self, frames: str, angle: int, grade: str, temperature: float = 0.2):
+    def generate_from_string(
+        self,
+        frames: str,
+        angle: int,
+        grade: str,
+        temperature: float = 0.2,
+    ) -> tuple[str, str, str]:
         """Generate a climb from a string of frames, angle, and grade"""
         tokenized = self.tokenizer.encode(frames, angle, grade, pad=self.config.context_len, eos=False).to(self.device)
         generated = self.generate_single(tokenized.unsqueeze(0), temperature)

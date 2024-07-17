@@ -31,7 +31,7 @@ parser.add_argument("--min_tokens", type=int, default=10)
 parser.add_argument("--angle", type=str_to_bool, default=True)
 parser.add_argument("--grade", type=str_to_bool, default=True)
 parser.add_argument("--grade_mask_rate", type=float, default=0.0)
-parser.add_argument("--label_smoothing", type=str_to_bool, default=False)
+parser.add_argument("--label_smoothing", type=str_to_bool, default=True)
 config = parser.parse_args()
 config.head_size = config.n_embed // config.num_heads
 
@@ -68,7 +68,7 @@ trainer = Trainer(
     logger=[WandbLogger(project="kilter-gpt", config=config, log_model=True)],
     precision="bf16-mixed",
     callbacks=[
-        L.pytorch.callbacks.EarlyStopping(monitor="val/loss", patience=10),
+        L.pytorch.callbacks.EarlyStopping(monitor="val/loss", patience=20),
         L.pytorch.callbacks.ModelCheckpoint(monitor="val/loss", mode="min"),
     ],
 )

@@ -48,9 +48,13 @@ class Tokenizer:
     def hold_token_ids(self):
         return torch.tensor([self.encode_map[x] for x in self.hold_tokens])
 
-    @property
-    def color_tokens(self):
-        return [x for x in self.encode_map if x.startswith("r")]
+    @staticmethod
+    def color_tokens():
+        return ["r12", "r13", "r14", "r15"]
+
+    @staticmethod
+    def special_tokens():
+        return ["[PAD]", "[BOS]", "[EOS]", "[UNK]", "[MASK]"]
 
     @property
     def color_token_ids(self):
@@ -89,32 +93,26 @@ class Tokenizer:
 
     @staticmethod
     def from_df(df: pd.DataFrame, angle: bool = True, grade: bool = True) -> "Tokenizer":
-        tokens = [
-            Tokenizer.bos_token,
-            Tokenizer.eos_token,
-            Tokenizer.pad_token,
-            Tokenizer.mask_token,
-            Tokenizer.unk_token,
-            "r12",
-            "r13",
-            "r14",
-            "r15",
-        ]
-        ## Add all unique tokens from the frames
-        hold_tokens, angle_tokens, grade_tokens = [], [], []
+        hold_tokens, angle_tokens, grade_tokens = set(), set(), set()
         for frame in df["frames"].unique():
             for token in Tokenizer.split_tokens(frame):
-                if token not in hold_tokens:
-                    hold_tokens.append(token)
+                if token.startswith("p"):  # Add only hold tokens
+                    hold_tokens.add(token)
         # Add angle and difficulty tokens
         if angle:
             for i in df["angle"].unique():
-                angle_tokens.append(f"a{i}")
+                angle_tokens.add(f"a{i}")
         if grade:
             for i in df["font_grade"].unique():
-                grade_tokens.append(f"f{i}")
-        tokens += sorted(hold_tokens) + sorted(angle_tokens) + sorted(grade_tokens)
-        encode_map = {token: idx for idx, token in enumerate(tokens)}
+                grade_tokens.add(f"f{i}")
+        tokens = (
+            Tokenizer.special_tokens()
+            + Tokenizer.color_tokens()
+            + sorted(list(hold_tokens))
+            + sorted(list(angle_tokens))
+            + sorted(list(grade_tokens))
+        )
+        encode_map = {x: i for i, x in enumerate(tokens)}
         return Tokenizer(encode_map)
 
     @staticmethod
