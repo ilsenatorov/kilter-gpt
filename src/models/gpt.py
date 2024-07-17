@@ -118,7 +118,7 @@ class GPTModel(L.LightningModule):
     def __init__(self, config: Namespace, tokenizer: Tokenizer):
         super(GPTModel, self).__init__()
         # Model Architecture
-        self.save_hyperparameters()
+        self.save_hyperparameters(config)
         self.config = config
         self.tokenizer = tokenizer
         self.model = GPT(self.config)
@@ -158,7 +158,7 @@ class GPTModel(L.LightningModule):
                 [self.tokenizer.encode(*x, pad=self.config.context_len, eos=False) for x in prompts]
             ).to(self.device)
             for temp in [0.01, 0.1, 0.3, 0.5]:
-                generated = self.generate(tokenized_prompts, 70, temperature=temp)
+                generated = self.generate_batch(tokenized_prompts, 70, temperature=temp)
                 texts = [self.tokenizer.decode(x, clean=True) for x in generated]
                 images = [plotter.plot_climb(x[0]) for x in texts]
                 captions = [f"Angle: {x[1]}, Grade: {x[2]}, Temp: {temp}" for x in texts]
@@ -180,17 +180,16 @@ class GPTModel(L.LightningModule):
         }
         return {"optimizer": optimizer, "lr_scheduler": scheduler_config}
 
-    @torch.jit.export
-    def generate(self, prompts: torch.Tensor, max_tokens: int, temperature: float = 0.2):
-        """
-        Generates text based on the provided prompts.
-        Model determinism can be changed with temperature (range: [0, 1], higher means more unstable but creative predictions)
-        prompts have to be left-padded tensors of shape (batch, context_len)
-        """
-        context_len = prompts.shape[1]
+    def embed(self, prompts: torch.Tensor):
+        """Embeds prompts of size (B, C) into (B, C, Z) where Z is the embedding dimension"""
+        return self.model.embed(prompts)
+
+    def generate_batch(self, prompts: torch.Tensor, max_tokens: int, temperature: float = 0.2) -> torch.Tensor:
+        """Generates climbs from a batch of tokenized and padded prompts"""
+        assert prompts.size(1) == self.config.context_len, "Prompts shape must match context length"
         context = prompts
         for _ in range(max_tokens):
-            context = prompts[:, -context_len:]
+            context = prompts[:, -self.config.context_len :]
             logits = self.forward(context)  # (batch, context_len, vocab_size)
             logits = logits[:, -1, :] / temperature
             logit_probs = nn.functional.softmax(logits, dim=-1)
@@ -198,5 +197,25 @@ class GPTModel(L.LightningModule):
             prompts = torch.cat((prompts, next_prompt), dim=1)
         return prompts
 
-    def embed(self, prompts: torch.Tensor):
-        return self.model.embed(prompts)
+    def generate_single(self, prompt: torch.Tensor, temperature: float = 0.2):
+        """Generate until EOS token is reached (not batched)"""
+        assert prompt.size() == (1, self.config.context_len), "Prompt shape must be (1, context_len)"
+        context_len = prompt.shape[1]
+        context = prompt
+        # Generate until EOS token is reached
+        for _ in range(999):
+            context = prompt[:, -context_len:]
+            logits = self.forward(context)
+            logits = logits[:, -1, :] / temperature
+            logit_probs = nn.functional.softmax(logits, dim=-1)
+            next_prompt = torch.multinomial(logit_probs, num_samples=1)
+            prompt = torch.cat((prompt, next_prompt), dim=1)
+            if next_prompt == self.tokenizer.eos_token_id:
+                break
+        return prompt
+
+    def generate_from_string(self, frames: str, angle: int, grade: str, temperature: float = 0.2):
+        """Generate a climb from a string of frames, angle, and grade"""
+        tokenized = self.tokenizer.encode(frames, angle, grade, pad=self.config.context_len, eos=False).to(self.device)
+        generated = self.generate_single(tokenized.unsqueeze(0), temperature)
+        return self.tokenizer.decode(generated.squeeze(0), clean=True)
