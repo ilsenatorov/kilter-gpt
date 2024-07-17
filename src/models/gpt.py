@@ -1,4 +1,5 @@
 import os
+from argparse import Namespace
 
 import lightning as L
 import pandas as pd
@@ -114,11 +115,12 @@ class GPT(L.LightningModule):
 
 
 class GPTModel(L.LightningModule):
-    def __init__(self, config):
+    def __init__(self, config: Namespace, tokenizer: Tokenizer):
         super(GPTModel, self).__init__()
         # Model Architecture
         self.save_hyperparameters()
         self.config = config
+        self.tokenizer = tokenizer
         self.model = GPT(self.config)
 
     def get_loss(self, logits, targets):
@@ -152,13 +154,12 @@ class GPTModel(L.LightningModule):
         if os.path.exists("data/prompts.pt"):
             prompts = torch.load("data/prompts.pt")
             plotter = Plotter()
-            tokenizer = Tokenizer.load("data/tokenizer.pt")
             tokenized_prompts = torch.stack(
-                [tokenizer.encode(*x, pad=self.config.context_len, eos=False) for x in prompts]
+                [self.tokenizer.encode(*x, pad=self.config.context_len, eos=False) for x in prompts]
             ).to(self.device)
             for temp in [0.01, 0.1, 0.3, 0.5]:
                 generated = self.generate(tokenized_prompts, 70, temperature=temp)
-                texts = [tokenizer.decode(x, clean=True) for x in generated]
+                texts = [self.tokenizer.decode(x, clean=True) for x in generated]
                 images = [plotter.plot_climb(x[0]) for x in texts]
                 captions = [f"Angle: {x[1]}, Grade: {x[2]}, Temp: {temp}" for x in texts]
                 self.logger.log_image(key=f"temp_{temp}", images=images, caption=captions)

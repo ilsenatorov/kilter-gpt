@@ -13,7 +13,6 @@ class KilterGPTDataset(Dataset):
         filename,
         context_len: int = 32,  # 1 hold == 2 tokens
         min_tokens: int = 5,  # smallest number of tokens in a sequence
-        deduplicate: bool = False,
         shuffle_tokens: bool = True,
         angle: bool = False,
         grade: bool = False,
@@ -26,8 +25,6 @@ class KilterGPTDataset(Dataset):
         self.grade = grade
         self.shuffle_tokens = shuffle_tokens
         self.df = pd.read_csv(filename)
-        if deduplicate:
-            self.df = self.df.drop_duplicates("frames")
         self.tokenizer = self._get_tokenizer()
         self.grade_mask_rate = grade_mask_rate
         self.label_smoothing = label_smoothing
@@ -44,9 +41,12 @@ class KilterGPTDataset(Dataset):
         """Get a random contiguous sequence of tokens from the frames column. Pad left to context_len."""
         row = self.df.iloc[idx]
         frames = row["frames"]
-        if self.shuffle_tokens:
-            frames = shuffle_holds(frames)
-        tokenized = self.tokenizer.encode(shuffle_holds(frames), row["angle"].item(), row["font_grade"])
+        tokenized = self.tokenizer.encode(
+            shuffle_holds(frames),
+            row["angle"].item(),
+            row["font_grade"],
+            shuffle=self.shuffle_tokens,
+        )
         n = tokenized.size(0)
         if n <= self.min_tokens:
             end = n
