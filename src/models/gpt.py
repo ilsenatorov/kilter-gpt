@@ -1,3 +1,4 @@
+import math
 import os
 from argparse import Namespace
 
@@ -11,115 +12,139 @@ import torchmetrics as metrics
 from ..utils import Plotter, Tokenizer
 
 
-class CausalSelfAttentionHead(nn.Module):
+class LayerNorm(nn.Module):
+    """LayerNorm but with an optional bias. PyTorch doesn't support simply bias=False"""
+
+    def __init__(self, ndim, bias):
+        super().__init__()
+        self.weight = nn.Parameter(torch.ones(ndim))
+        self.bias = nn.Parameter(torch.zeros(ndim)) if bias else None
+
+    def forward(self, input):
+        return F.layer_norm(input, self.weight.shape, self.weight, self.bias, 1e-5)
+
+
+class CausalSelfAttention(nn.Module):
+
     def __init__(self, config):
-        super(CausalSelfAttentionHead, self).__init__()
-        self.config = config
-        self.head_size = config.head_size
-        self.query = nn.Linear(config.n_embed, config.head_size, bias=False)
-        self.key = nn.Linear(config.n_embed, config.head_size, bias=False)
-        self.value = nn.Linear(config.n_embed, config.head_size, bias=False)
-        self.attn_drop = nn.Dropout(config.attn_drop_value)
-        self.register_buffer("tril", torch.tril(torch.ones(config.context_len, config.context_len)))
+        super().__init__()
+        assert config.n_embed % config.n_head == 0
+        # key, query, value projections for all heads, but in a batch
+        self.c_attn = nn.Linear(config.n_embed, 3 * config.n_embed, bias=config.bias)
+        # output projection
+        self.c_proj = nn.Linear(config.n_embed, config.n_embed, bias=config.bias)
+        # regularization
+        self.attn_dropout = nn.Dropout(config.dropout)
+        self.resid_dropout = nn.Dropout(config.dropout)
+        self.n_head = config.n_head
+        self.n_embd = config.n_embed
+        self.dropout = config.dropout
 
     def forward(self, x):
-        # x.shape: (Batch, Context Length, Embedding Dimension)
-        B, C, N = x.shape
-        q = self.query(x)  # (B, C, head_size)
-        k = self.key(x)  # (B, C, head_size)
-        v = self.value(x)  # (B, C, head_size)
+        B, T, C = x.size()  # batch size, sequence length, embedding dimensionality (n_embd)
 
-        # Compute Attention scores
-        # (B, C, head_size) bmm (B, head_size, C) -> (B, C, C)
-        attn_weight = torch.div(torch.bmm(q, k.permute(0, 2, 1)), self.head_size)
-        attn_weight = attn_weight.masked_fill(self.tril[:C, :C] == 0, float("-inf"))
-        attn_weight = F.softmax(attn_weight, dim=-1)
-        attn_weight = self.attn_drop(attn_weight)
+        # calculate query, key, values for all heads in batch and move head forward to be the batch dim
+        q, k, v = self.c_attn(x).split(self.n_embd, dim=2)
+        k = k.view(B, T, self.n_head, C // self.n_head).transpose(1, 2)  # (B, nh, T, hs)
+        q = q.view(B, T, self.n_head, C // self.n_head).transpose(1, 2)  # (B, nh, T, hs)
+        v = v.view(B, T, self.n_head, C // self.n_head).transpose(1, 2)  # (B, nh, T, hs)
 
-        # Do weighted aggregation of values
-        output = torch.bmm(attn_weight, v)
-        return output
-
-
-class MultiHeadedAttention(nn.Module):
-    def __init__(self, config):
-        super(MultiHeadedAttention, self).__init__()
-        self.head_size = config.head_size
-        self.num_heads = config.num_heads
-        self.embed_dim = config.n_embed
-
-        self.heads = nn.ModuleList([CausalSelfAttentionHead(config) for _ in range(self.num_heads)])
-        self.proj = nn.Linear(config.num_heads * config.head_size, config.n_embed)
-        self.drop = nn.Dropout(config.multihead_drop_value)
-
-    def forward(self, x):
-        multihead_output = torch.cat([head(x) for head in self.heads], dim=-1)
-        return self.drop(self.proj(multihead_output))
-
-
-class FFN(nn.Module):
-    def __init__(self, config):
-        super(FFN, self).__init__()
-        self.ffn = nn.Sequential(
-            nn.Linear(config.n_embed, config.n_embed * 4),
-            nn.GELU(),
-            nn.Linear(config.n_embed * 4, config.n_embed),
-            nn.Dropout(config.ffn_drop_value),
+        # causal self-attention; Self-attend: (B, nh, T, hs) x (B, nh, hs, T) -> (B, nh, T, T)
+        y = torch.nn.functional.scaled_dot_product_attention(
+            q, k, v, attn_mask=None, dropout_p=self.dropout if self.training else 0, is_causal=True
         )
+        y = y.transpose(1, 2).contiguous().view(B, T, C)  # re-assemble all head outputs side by side
+        y = self.resid_dropout(self.c_proj(y))
+        return y
 
-    def forward(self, x):
-        return self.ffn(x)
 
+class MLP(nn.Module):
 
-class GPTBlock(nn.Module):
     def __init__(self, config):
-        super(GPTBlock, self).__init__()
-        self.multiheaded_attn = MultiHeadedAttention(config)
-        self.ffn = FFN(config)
-        self.layernorm1 = nn.LayerNorm(config.n_embed)
-        self.layernorm2 = nn.LayerNorm(config.n_embed)
+        super().__init__()
+        self.c_fc = nn.Linear(config.n_embed, 4 * config.n_embed, bias=config.bias)
+        self.gelu = nn.GELU()
+        self.c_proj = nn.Linear(4 * config.n_embed, config.n_embed, bias=config.bias)
+        self.dropout = nn.Dropout(config.dropout)
 
     def forward(self, x):
-        x = x + self.layernorm1(self.multiheaded_attn(x))
-        x = x + self.layernorm2(self.ffn(x))
+        x = self.c_fc(x)
+        x = self.gelu(x)
+        x = self.c_proj(x)
+        x = self.dropout(x)
+        return x
+
+
+class Block(nn.Module):
+
+    def __init__(self, config):
+        super().__init__()
+        self.ln_1 = LayerNorm(config.n_embed, bias=config.bias)
+        self.attn = CausalSelfAttention(config)
+        self.ln_2 = LayerNorm(config.n_embed, bias=config.bias)
+        self.mlp = MLP(config)
+
+    def forward(self, x):
+        x = x + self.attn(self.ln_1(x))
+        x = x + self.mlp(self.ln_2(x))
         return x
 
 
 class GPT(L.LightningModule):
-    def __init__(self, config):
-        super(GPT, self).__init__()
-        self.config = config
-        # Init layers and stuff
-        self.tok_embedding = nn.Embedding(config.vocab_size, config.n_embed, padding_idx=config.pad_token_id)
-        self.pos_embedding = nn.Embedding(config.context_len, config.n_embed)
-        self.blocks = nn.Sequential(*[GPTBlock(config) for _ in range(config.num_blocks)])
-        self.lm_head = nn.Linear(config.n_embed, config.vocab_size)
+    """The non-kilterboard specific GPT model"""
 
-    def forward(self, x):
-        x = self.embed(x)
-        # And finally pass it through the final layer to get the logits
+    def __init__(self, config):
+        super().__init__()
+        self.config = config
+
+        self.transformer = nn.ModuleDict(
+            dict(
+                wte=nn.Embedding(config.vocab_size, config.n_embed),
+                wpe=nn.Embedding(config.context_len, config.n_embed),
+                drop=nn.Dropout(config.dropout),
+                h=nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
+                ln_f=LayerNorm(config.n_embed, bias=config.bias),
+            )
+        )
+        self.lm_head = nn.Linear(config.n_embed, config.vocab_size, bias=False)
+        self.transformer.wte.weight = self.lm_head.weight  # https://paperswithcode.com/method/weight-tying
+        self.apply(self._init_weights)
+        for pn, p in self.named_parameters():
+            if pn.endswith("c_proj.weight"):
+                torch.nn.init.normal_(p, mean=0.0, std=0.02 / math.sqrt(2 * config.n_layer))
+
+    def _init_weights(self, module):
+        if isinstance(module, nn.Linear):
+            torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
+            if module.bias is not None:
+                torch.nn.init.zeros_(module.bias)
+        elif isinstance(module, nn.Embedding):
+            torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
+
+    def forward(self, idx):
+        x = self.embed(idx)
         logits = self.lm_head(x)
         return logits
 
-    def embed(self, x):
-        # Input is just tokenized text of 'B' batches, each 'C' context length long
-        B, C = x.shape
-        # First we apply the token embedding -> tok_emb (B, C, V)
-        tok_emb = self.tok_embedding(x)
-        # Then we get the positional embeddings with length equal to context len
-        pos_emb = self.pos_embedding(torch.arange(C, device=self.device))
-        # Then we add them
-        x = tok_emb + pos_emb
-        # Then we pass the input through all the GPT blocks
-        x = self.blocks(x)
+    def embed(self, idx):
+        b, t = idx.size()
+        pos = torch.arange(0, t, dtype=torch.long, device=self.device)  # shape (t)
+        tok_emb = self.transformer.wte(idx)  # token embeddings of shape (b, t, n_embd)
+        pos_emb = self.transformer.wpe(pos)  # position embeddings of shape (t, n_embd)
+        x = self.transformer.drop(tok_emb + pos_emb)
+        for block in self.transformer.h:
+            x = block(x)
+        x = self.transformer.ln_f(x)
         return x
 
 
 class GPTModel(L.LightningModule):
-    def __init__(self, config: Namespace, tokenizer: Tokenizer):
+    """Whole model that is kilterboard-specific"""
+
+    def __init__(self, config, tokenizer: Tokenizer):
         super(GPTModel, self).__init__()
         # Model Architecture
-        self.save_hyperparameters(config)
+        self.save_hyperparameters()
         self.config = config
         self.tokenizer = tokenizer
         self.model = GPT(self.config)

@@ -15,23 +15,25 @@ torch.set_float32_matmul_precision("high")
 
 
 parser = ArgumentParser()
+# dataset params
 parser.add_argument("--dataset", type=str, default="data/raw/climbs.csv")
-parser.add_argument("--batch_size", type=int, default=512)
-parser.add_argument("--epochs", type=int, default=250)
-parser.add_argument("--lr", type=float, default=1e-4)
-parser.add_argument("--wd", type=float, default=1e-5)
-parser.add_argument("--n_embed", type=int, default=512)
-parser.add_argument("--num_blocks", type=int, default=8)
-parser.add_argument("--num_heads", type=int, default=8)
-parser.add_argument("--context_len", type=int, default=64)
-parser.add_argument("--attn_drop_value", type=float, default=0.2)
-parser.add_argument("--multihead_drop_value", type=float, default=0.2)
-parser.add_argument("--ffn_drop_value", type=float, default=0.2)
-parser.add_argument("--min_tokens", type=int, default=10)
+parser.add_argument("--min_tokens", type=int, default=10, help="Minimum number of tokens in a climb")
 parser.add_argument("--angle", type=str_to_bool, default=True)
 parser.add_argument("--grade", type=str_to_bool, default=True)
-parser.add_argument("--grade_mask_rate", type=float, default=0.0)
 parser.add_argument("--label_smoothing", type=str_to_bool, default=True)
+parser.add_argument("--grade_mask_rate", type=float, default=0.0)
+# training params
+parser.add_argument("--batch_size", type=int, default=1024)
+parser.add_argument("--epochs", type=int, default=250)
+parser.add_argument("--lr", type=float, default=6e-4)
+parser.add_argument("--wd", type=float, default=1e-4)
+# model params
+parser.add_argument("--n_head", type=int, default=8)
+parser.add_argument("--n_layer", type=int, default=8)
+parser.add_argument("--n_embed", type=int, default=512)
+parser.add_argument("--context_len", type=int, default=64)
+parser.add_argument("--dropout", type=float, default=0.0)
+parser.add_argument("--bias", type=str_to_bool, default=True)
 config = parser.parse_args()
 
 ds = KilterGPTDataset(
@@ -52,8 +54,6 @@ prompts = [
 ]
 torch.save(prompts, "data/prompts.pt")
 
-config.head_size = config.n_embed // config.num_heads
-config.pad_token_id = ds.tokenizer.pad_token_id
 config.vocab_size = len(ds.tokenizer.encode_map)
 train, val = random_split(ds, [0.8, 0.2])
 
