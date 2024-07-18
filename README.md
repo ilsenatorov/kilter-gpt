@@ -17,12 +17,13 @@ Simply running the `train.py` script will start training the model. You can adju
 
 ## TODO
 
-* Improve tokenizer functionality, move all the tokenization/padding logic to the tokenizer class
 * Add some automatic evaluation metrics (similarity to real data, consistency, etc.)
 * Convert dataset to hf dataset?
 * Add a script to convert the model to onnx?
 * Plot UMAP of token embeddings to check for logical clustering
 * Learning rate warmup with annealing is probably better than plateau reduction.
+* Add masking of padding tokens to attention mechanism
+* ~~Improve tokenizer functionality, move all the tokenization/padding logic to the tokenizer class~~
 * ~~Save and load tokenizer from json/pickle~~
 * ~~Improve consistency of data preprocessing store as pandas dataframe, handle internally as list/tensor~~
 * ~~Validation set and loop?~~

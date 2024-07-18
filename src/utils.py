@@ -31,11 +31,9 @@ class Tokenizer:
     unk_token = "[UNK]"
     mask_token = "[MASK]"
 
-    def __init__(self, encode_map: dict[str, int], angle: bool = False, grade: bool = False):
+    def __init__(self, encode_map: dict[str, int]):
         self.encode_map = encode_map
         self.decode_map = {v: k for k, v in self.encode_map.items()}
-        self.angle = angle
-        self.grade = grade
         self._set_special_token_ids()
 
     @property
@@ -50,9 +48,13 @@ class Tokenizer:
     def hold_token_ids(self):
         return torch.tensor([self.encode_map[x] for x in self.hold_tokens])
 
-    @property
-    def color_tokens(self):
-        return [x for x in self.encode_map if x.startswith("r")]
+    @staticmethod
+    def color_tokens():
+        return ["r12", "r13", "r14", "r15"]
+
+    @staticmethod
+    def special_tokens():
+        return ["[PAD]", "[BOS]", "[EOS]", "[UNK]", "[MASK]"]
 
     @property
     def color_token_ids(self):
@@ -90,32 +92,28 @@ class Tokenizer:
         self.mask_token_id = self.encode_map[self.mask_token]
 
     @staticmethod
-    def from_df(df: pd.DataFrame, angle: bool = False, grade: bool = False) -> "Tokenizer":
-        tokens = [
-            Tokenizer.bos_token,
-            Tokenizer.eos_token,
-            Tokenizer.pad_token,
-            Tokenizer.mask_token,
-            Tokenizer.unk_token,
-            "r12",
-            "r13",
-            "r14",
-            "r15",
-        ]
-        ## Add all unique tokens from the frames
-        for frame in df["frames"]:
+    def from_df(df: pd.DataFrame, angle: bool = True, grade: bool = True) -> "Tokenizer":
+        hold_tokens, angle_tokens, grade_tokens = set(), set(), set()
+        for frame in df["frames"].unique():
             for token in Tokenizer.split_tokens(frame):
-                if token not in tokens:
-                    tokens.append(token)
+                if token.startswith("p"):  # Add only hold tokens
+                    hold_tokens.add(token)
         # Add angle and difficulty tokens
         if angle:
             for i in df["angle"].unique():
-                tokens.append(f"a{i}")
+                angle_tokens.add(f"a{i}")
         if grade:
             for i in df["font_grade"].unique():
-                tokens.append(f"f{i}")
-        encode_map = {token: idx for idx, token in enumerate(tokens)}
-        return Tokenizer(encode_map, angle, grade)
+                grade_tokens.add(f"f{i}")
+        tokens = (
+            Tokenizer.special_tokens()
+            + Tokenizer.color_tokens()
+            + sorted(list(hold_tokens))
+            + sorted(list(angle_tokens))
+            + sorted(list(grade_tokens))
+        )
+        encode_map = {x: i for i, x in enumerate(tokens)}
+        return Tokenizer(encode_map)
 
     @staticmethod
     def split_tokens(frames: str) -> list[str]:
@@ -132,6 +130,8 @@ class Tokenizer:
         frames: str,
         angle: int = None,
         grade: str = None,
+        *,
+        shuffle: bool = False,
         bos: bool = True,
         eos: bool = True,
         pad: int = 0,
@@ -139,11 +139,13 @@ class Tokenizer:
         tokens = []
         if bos:
             tokens.append(self.bos_token)
-        if self.angle and angle:
+        if angle:
             tokens.append(f"a{angle}")
-        if self.grade and grade:
+        if grade:
             tokens.append(f"f{grade}")
-        tokens += self.split_tokens(frames)
+        if shuffle:
+            frames = shuffle_holds(frames)
+        tokens.extend(self.split_tokens(frames))
         if eos:
             tokens.append(self.eos_token)
         t = torch.tensor([self.encode_map[x] for x in tokens], dtype=torch.long)
@@ -192,7 +194,7 @@ class Tokenizer:
         return pad_to(x, size, self.encode_map[self.pad_token], where=where)
 
     def __repr__(self):
-        return f"Tokenizer(angle={self.angle}, grade={self.grade})"
+        return f"Tokenizer, tokens:{len(self.encode_map)}, hold:{len(self.hold_tokens)}, angle:{len(self.angle_tokens)}, grade:{len(self.grade_tokens)}"
 
 
 class Plotter:

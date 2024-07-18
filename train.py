@@ -15,9 +15,10 @@ torch.set_float32_matmul_precision("high")
 
 
 parser = ArgumentParser()
+parser.add_argument("--dataset", type=str, default="data/raw/climbs.csv")
 parser.add_argument("--batch_size", type=int, default=512)
 parser.add_argument("--epochs", type=int, default=250)
-parser.add_argument("--lr", type=float, default=1e-3)
+parser.add_argument("--lr", type=float, default=1e-4)
 parser.add_argument("--wd", type=float, default=1e-5)
 parser.add_argument("--n_embed", type=int, default=512)
 parser.add_argument("--num_blocks", type=int, default=8)
@@ -30,14 +31,13 @@ parser.add_argument("--min_tokens", type=int, default=10)
 parser.add_argument("--angle", type=str_to_bool, default=True)
 parser.add_argument("--grade", type=str_to_bool, default=True)
 parser.add_argument("--grade_mask_rate", type=float, default=0.0)
-parser.add_argument("--label_smoothing", type=str_to_bool, default=False)
+parser.add_argument("--label_smoothing", type=str_to_bool, default=True)
 config = parser.parse_args()
 
 ds = KilterGPTDataset(
-    "data/raw/climbs.csv",
+    config.dataset,
     context_len=config.context_len,
     min_tokens=config.min_tokens,
-    deduplicate=True,
     angle=config.angle,
     grade=config.grade,
     grade_mask_rate=config.grade_mask_rate,
@@ -55,13 +55,12 @@ torch.save(prompts, "data/prompts.pt")
 config.head_size = config.n_embed // config.num_heads
 config.pad_token_id = ds.tokenizer.pad_token_id
 config.vocab_size = len(ds.tokenizer.encode_map)
-ds.tokenizer.save("data/tokenizer.pt")
 train, val = random_split(ds, [0.8, 0.2])
 
 train_dl = DataLoader(train, batch_size=config.batch_size, shuffle=True, pin_memory=True, num_workers=8)
 val_dl = DataLoader(val, batch_size=config.batch_size, shuffle=True, pin_memory=True, num_workers=8)
 
-model = GPTModel(config)
+model = GPTModel(config, ds.tokenizer)
 
 trainer = Trainer(
     devices=-1,
@@ -69,7 +68,7 @@ trainer = Trainer(
     logger=[WandbLogger(project="kilter-gpt", config=config, log_model=True)],
     precision="bf16-mixed",
     callbacks=[
-        L.pytorch.callbacks.EarlyStopping(monitor="val/loss", patience=10),
+        L.pytorch.callbacks.EarlyStopping(monitor="val/loss", patience=20),
         L.pytorch.callbacks.ModelCheckpoint(monitor="val/loss", mode="min"),
     ],
 )
