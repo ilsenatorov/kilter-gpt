@@ -7,7 +7,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from ..utils import Plotter, Tokenizer, WarmupCosineSchedule
+from ..utils import Plotter, WarmupCosineSchedule
 
 
 class LayerNorm(nn.Module):
@@ -50,7 +50,7 @@ class CausalSelfAttention(nn.Module):
         # causal self-attention; Self-attend: (B, nh, T, hs) x (B, nh, hs, T) -> (B, nh, T, T)
         if mask is None:
             mask = torch.ones((B, T), device=x.device).bool()
-        y = torch.nn.functional.scaled_dot_product_attention(
+        y = F.scaled_dot_product_attention(
             q,
             k,
             v,
@@ -146,7 +146,7 @@ class GPT(L.LightningModule):
 class GPTModel(L.LightningModule):
     """Whole model that is kilterboard-specific"""
 
-    def __init__(self, config, tokenizer: Tokenizer):
+    def __init__(self, config, tokenizer):
         super(GPTModel, self).__init__()
         self.save_hyperparameters()
         self.config = config
@@ -156,19 +156,19 @@ class GPTModel(L.LightningModule):
 
     def get_loss(self, logits, targets):
         B, C, V = logits.shape
-        logits = logits.view(B * C, V)
         if len(targets.size()) == 2:  # If targets are class labels
+            logits = logits.view(B * C, V)
             targets = targets.view(B * C)
-            loss = nn.functional.cross_entropy(logits, targets, ignore_index=self.tokenizer.pad_token_id)
+            loss = F.cross_entropy(logits, targets, ignore_index=self.tokenizer.pad_token_id)
         else:  # if targets are class probabilities
             targets = targets.view(B * C, V)
-            mask = targets[:, self.tokenizer.pad_token_id] != 1
-            loss = nn.functional.binary_cross_entropy_with_logits(logits[mask], targets[mask])
+            mask = targets[:, :, self.tokenizer.pad_token_id] != 1
+            loss = F.binary_cross_entropy_with_logits(logits[mask], targets[mask])
         return loss
 
     def forward(self, x):
-        mask = x != self.tokenizer.pad_token_id
-        mask = ~mask.unsqueeze(1).unsqueeze(2)
+        mask = x.eq(self.tokenizer.pad_token_id)
+        mask = mask.unsqueeze(1).unsqueeze(2)
         logits = self.model.forward(x, mask)
         return logits
 
@@ -228,7 +228,7 @@ class GPTModel(L.LightningModule):
         """Generate a single token"""
         logits = self.forward(prompts)
         logits = logits[:, -1, :] / temperature
-        logit_probs = nn.functional.softmax(logits, dim=-1)
+        logit_probs = F.softmax(logits, dim=-1)
         next_prompt = torch.multinomial(logit_probs, num_samples=1)
         return next_prompt
 

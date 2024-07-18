@@ -4,7 +4,7 @@ import pandas as pd
 import torch
 from torch.utils.data import Dataset
 
-from ..utils import Tokenizer, pad_to, shuffle_holds
+from .tokenizer import Tokenizer, pad_to
 
 
 class KilterGPTDataset(Dataset):
@@ -42,7 +42,7 @@ class KilterGPTDataset(Dataset):
         row = self.df.iloc[idx]
         frames = row["frames"]
         tokenized = self.tokenizer.encode(
-            shuffle_holds(frames),
+            frames,
             row["angle"].item(),
             row["font_grade"],
             shuffle=self.shuffle_tokens,
