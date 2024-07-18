@@ -1,13 +1,13 @@
+import inspect
 import math
 import os
-from argparse import Namespace
 
 import lightning as L
-import pandas as pd
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torchmetrics as metrics
+
+from src.utils import linear_warmup_cosine_decay
 
 from ..utils import Plotter, Tokenizer
 
@@ -40,7 +40,7 @@ class CausalSelfAttention(nn.Module):
         self.n_embd = config.n_embed
         self.dropout = config.dropout
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor, mask=None):
         B, T, C = x.size()  # batch size, sequence length, embedding dimensionality (n_embd)
 
         # calculate query, key, values for all heads in batch and move head forward to be the batch dim
@@ -50,8 +50,15 @@ class CausalSelfAttention(nn.Module):
         v = v.view(B, T, self.n_head, C // self.n_head).transpose(1, 2)  # (B, nh, T, hs)
 
         # causal self-attention; Self-attend: (B, nh, T, hs) x (B, nh, hs, T) -> (B, nh, T, T)
+        if mask is None:
+            mask = torch.ones((B, T), device=x.device).bool()
         y = torch.nn.functional.scaled_dot_product_attention(
-            q, k, v, attn_mask=None, dropout_p=self.dropout if self.training else 0, is_causal=True
+            q,
+            k,
+            v,
+            attn_mask=mask,
+            dropout_p=self.dropout if self.training else 0,
+            is_causal=True,
         )
         y = y.transpose(1, 2).contiguous().view(B, T, C)  # re-assemble all head outputs side by side
         y = self.resid_dropout(self.c_proj(y))
@@ -84,8 +91,8 @@ class Block(nn.Module):
         self.ln_2 = LayerNorm(config.n_embed, bias=config.bias)
         self.mlp = MLP(config)
 
-    def forward(self, x):
-        x = x + self.attn(self.ln_1(x))
+    def forward(self, x, mask=None):
+        x = x + self.attn(self.ln_1(x), mask=mask)
         x = x + self.mlp(self.ln_2(x))
         return x
 
@@ -121,19 +128,19 @@ class GPT(L.LightningModule):
         elif isinstance(module, nn.Embedding):
             torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
 
-    def forward(self, idx):
-        x = self.embed(idx)
+    def forward(self, idx, mask=None):
+        x = self.embed(idx, mask)
         logits = self.lm_head(x)
         return logits
 
-    def embed(self, idx):
+    def embed(self, idx, mask=None):
         b, t = idx.size()
         pos = torch.arange(0, t, dtype=torch.long, device=self.device)  # shape (t)
         tok_emb = self.transformer.wte(idx)  # token embeddings of shape (b, t, n_embd)
         pos_emb = self.transformer.wpe(pos)  # position embeddings of shape (t, n_embd)
         x = self.transformer.drop(tok_emb + pos_emb)
         for block in self.transformer.h:
-            x = block(x)
+            x = block(x, mask=mask)
         x = self.transformer.ln_f(x)
         return x
 
@@ -148,14 +155,14 @@ class GPTModel(L.LightningModule):
         self.config = config
         self.tokenizer = tokenizer
         self.model = GPT(self.config)
+        # self.model = torch.compile(GPT(self.config))
 
     def get_loss(self, logits, targets):
         B, C, V = logits.shape
         logits = logits.view(B * C, V)
         if len(targets.size()) == 2:  # If targets are class labels
             targets = targets.view(B * C)
-            mask = targets != self.tokenizer.pad_token_id
-            loss = nn.functional.cross_entropy(logits[mask], targets[mask])
+            loss = nn.functional.cross_entropy(logits, targets, ignore_index=self.tokenizer.pad_token_id)
         else:  # if targets are class probabilities
             targets = targets.view(B * C, V)
             mask = targets[:, self.tokenizer.pad_token_id] != 1
@@ -163,12 +170,14 @@ class GPTModel(L.LightningModule):
         return loss
 
     def forward(self, x):
-        logits = self.model(x)
+        mask = x != self.tokenizer.pad_token_id
+        mask = ~mask.unsqueeze(1).unsqueeze(2)
+        logits = self.model.forward(x, mask)
         return logits
 
     def shared_step(self, batch, name="train"):
         text, target = batch
-        logits = self(text)
+        logits = self.forward(text)
         loss = self.get_loss(logits, target)
         self.log(f"{name}/loss", loss)
         return loss
@@ -179,39 +188,38 @@ class GPTModel(L.LightningModule):
     def validation_step(self, batch, batch_idx):
         return self.shared_step(batch, "val")
 
-    def generate_from_prompts(self):
-        if os.path.exists("data/prompts.pt"):
-            prompts = torch.load("data/prompts.pt")
-            plotter = Plotter()
-            tokenized_prompts = torch.stack(
-                [self.tokenizer.encode(*x, pad=self.config.context_len, eos=False) for x in prompts]
-            ).to(self.device)
-            for temp in [0.01, 0.1, 0.3, 0.5]:
-                generated = self.generate_batch(tokenized_prompts, 70, temperature=temp)
-                texts = [self.tokenizer.decode(x, clean=True) for x in generated]
-                images = [plotter.plot_climb(x[0]) for x in texts]
-                captions = [f"Angle: {x[1]}, Grade: {x[2]}, Temp: {temp}" for x in texts]
-                self.logger.log_image(key=f"temp_{temp}", images=images, caption=captions)
+    def plot_generated_climbs(self):
+        plotter = Plotter()
+        for temp in [0.1, 0.2, 0.3, 0.5]:
+            texts = [self.generate_from_string((f"p1136r12", 40, grade), temp) for grade in ["5a", "6a", "7a", "8a"]]
+            images = [plotter.plot_climb(x[0]) for x in texts]
+            captions = [f"Angle: {x[1]}, Grade: {x[2]}, Temp: {temp}" for x in texts]
+            self.logger.log_image(key=f"temp_{temp}", images=images, caption=captions)
 
-    def on_train_epoch_end(self):
-        if self.current_epoch % 25 == 0:
-            self.generate_from_prompts()
+    # def on_train_epoch_end(self):
+    #     if self.current_epoch % 25 == 0 and self.current_epoch > 0:
+    #         self.plot_generated_climbs()
 
     def configure_optimizers(self):
-        optimizer = torch.optim.AdamW(self.parameters(), lr=self.config.lr, weight_decay=self.config.wd)
+        param_dict = {pn: p for pn, p in self.named_parameters()}
+        param_dict = {pn: p for pn, p in param_dict.items() if p.requires_grad}
+        decay_params = [p for n, p in param_dict.items() if p.dim() >= 2]
+        nodecay_params = [p for n, p in param_dict.items() if p.dim() < 2]
+        optim_groups = [
+            {"params": decay_params, "weight_decay": self.config.wd},
+            {"params": nodecay_params, "weight_decay": 0.0},
+        ]
+        optimizer = torch.optim.AdamW(optim_groups, lr=self.config.lr, betas=(0.9, 0.95), fused=True)
+        scheduler = linear_warmup_cosine_decay(
+            optimizer,
+            self.config.lr * 0.01,
+            self.config.lr,
+            self.config.lr * 0.1,
+            200,
+            1000,
+        )
 
-        scheduler_config = {
-            "scheduler": torch.optim.lr_scheduler.ReduceLROnPlateau(
-                optimizer,
-                mode="min",
-                factor=0.1,
-                patience=10,
-                verbose=True,
-            ),
-            "interval": "epoch",
-            "monitor": "val/loss",
-        }
-        return {"optimizer": optimizer, "lr_scheduler": scheduler_config}
+        return [optimizer], [scheduler]
 
     def embed(self, prompts: torch.Tensor):
         """Embeds prompts of size (B, C) into (B, C, Z) where Z is the embedding dimension"""
@@ -220,28 +228,27 @@ class GPTModel(L.LightningModule):
     def generate_batch(self, prompts: torch.Tensor, max_tokens: int, temperature: float = 0.2) -> torch.Tensor:
         """Generates climbs from a batch of tokenized and padded prompts"""
         assert prompts.size(1) == self.config.context_len, "Prompts shape must match context length"
-        context = prompts
         for _ in range(max_tokens):
-            context = prompts[:, -self.config.context_len :]
-            logits = self.forward(context)  # (batch, context_len, vocab_size)
-            logits = logits[:, -1, :] / temperature
-            logit_probs = nn.functional.softmax(logits, dim=-1)
-            next_prompt = torch.multinomial(logit_probs, num_samples=1)
-            prompts = torch.cat((prompts, next_prompt), dim=1)
+            current_context = prompts[:, -self.config.context_len :]
+            next_prompt = self._generate_token(current_context, temperature)
+            prompts = torch.cat((prompts, next_prompt), dim=1)  # append the new token to the prompt
         return prompts
+
+    def _generate_token(self, prompts: torch.Tensor, temperature: float = 0.2) -> torch.Tensor:
+        """Generate a single token"""
+        logits = self.forward(prompts)
+        logits = logits[:, -1, :] / temperature
+        logit_probs = nn.functional.softmax(logits, dim=-1)
+        next_prompt = torch.multinomial(logit_probs, num_samples=1)
+        return next_prompt
 
     def generate_single(self, prompt: torch.Tensor, temperature: float = 0.2) -> torch.Tensor:
         """Generate until EOS token is reached (not batched)"""
         assert prompt.size() == (1, self.config.context_len), "Prompt shape must be (1, context_len)"
-        context_len = prompt.shape[1]
-        context = prompt
         # Generate until EOS token is reached
-        for _ in range(999):
-            context = prompt[:, -context_len:]
-            logits = self.forward(context)
-            logits = logits[:, -1, :] / temperature
-            logit_probs = nn.functional.softmax(logits, dim=-1)
-            next_prompt = torch.multinomial(logit_probs, num_samples=1)
+        for _ in range(999):  # this could be a while loop, but just to be safe I use a for loop
+            context = prompt[:, -self.config.context_len :]
+            next_prompt = self._generate_token(context, temperature)
             prompt = torch.cat((prompt, next_prompt), dim=1)
             if next_prompt == self.tokenizer.eos_token_id:
                 break

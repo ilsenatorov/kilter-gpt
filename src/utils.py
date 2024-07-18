@@ -1,3 +1,4 @@
+import math
 from typing import Iterable, Literal
 
 import cv2
@@ -5,6 +6,7 @@ import numpy as np
 import pandas as pd
 import torch
 from matplotlib import pyplot as plt
+from torch.optim.lr_scheduler import LambdaLR
 
 colors = torch.tensor(
     [
@@ -260,3 +262,24 @@ def str_to_bool(value: str) -> bool:
         return False
     else:
         raise ValueError("Boolean value expected.")
+
+
+def linear_warmup_cosine_decay(
+    optimizer: torch.optim.Optimizer,
+    start_lr: float,
+    max_lr: float,
+    end_lr: float,
+    warmup_steps: int,
+    total_steps: int,
+):
+
+    def lr_lambda(current_step):
+        if current_step < warmup_steps:
+            return start_lr + (max_lr - start_lr) * (current_step / warmup_steps)
+        elif current_step < total_steps:
+            progress = (current_step - warmup_steps) / (total_steps - warmup_steps)
+            return end_lr + 0.5 * (max_lr - end_lr) * (1 + math.cos(math.pi * progress))
+        else:
+            return end_lr  # Keep minimum learning rate
+
+    return LambdaLR(optimizer, lr_lambda)
