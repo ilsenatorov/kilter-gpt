@@ -7,9 +7,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from src.utils import linear_warmup_cosine_decay
-
-from ..utils import Plotter, Tokenizer
+from ..utils import Plotter, Tokenizer, WarmupCosineSchedule
 
 
 class LayerNorm(nn.Module):
@@ -150,12 +148,11 @@ class GPTModel(L.LightningModule):
 
     def __init__(self, config, tokenizer: Tokenizer):
         super(GPTModel, self).__init__()
-        # Model Architecture
         self.save_hyperparameters()
         self.config = config
         self.tokenizer = tokenizer
-        self.model = GPT(self.config)
-        # self.model = torch.compile(GPT(self.config))
+        # self.model = GPT(self.config)
+        self.model = torch.compile(GPT(self.config))
 
     def get_loss(self, logits, targets):
         B, C, V = logits.shape
@@ -189,16 +186,17 @@ class GPTModel(L.LightningModule):
         return self.shared_step(batch, "val")
 
     def plot_generated_climbs(self):
+        """Used to visually monitor quality of generated data during training"""
         plotter = Plotter()
         for temp in [0.1, 0.2, 0.3, 0.5]:
-            texts = [self.generate_from_string((f"p1136r12", 40, grade), temp) for grade in ["5a", "6a", "7a", "8a"]]
+            texts = [self.generate_from_string("p1132r12", 40, grade, temp) for grade in ["5a", "6a", "7a", "8a"]]
             images = [plotter.plot_climb(x[0]) for x in texts]
             captions = [f"Angle: {x[1]}, Grade: {x[2]}, Temp: {temp}" for x in texts]
             self.logger.log_image(key=f"temp_{temp}", images=images, caption=captions)
 
-    # def on_train_epoch_end(self):
-    #     if self.current_epoch % 25 == 0 and self.current_epoch > 0:
-    #         self.plot_generated_climbs()
+    def on_train_epoch_end(self):
+        if self.current_epoch % 25 == 0 and self.current_epoch > 0:
+            self.plot_generated_climbs()
 
     def configure_optimizers(self):
         param_dict = {pn: p for pn, p in self.named_parameters()}
@@ -210,29 +208,21 @@ class GPTModel(L.LightningModule):
             {"params": nodecay_params, "weight_decay": 0.0},
         ]
         optimizer = torch.optim.AdamW(optim_groups, lr=self.config.lr, betas=(0.9, 0.95), fused=True)
-        scheduler = linear_warmup_cosine_decay(
+        scheduler = WarmupCosineSchedule(
             optimizer,
-            self.config.lr * 0.01,
-            self.config.lr,
-            self.config.lr * 0.1,
-            200,
-            1000,
+            self.config.total_steps // 10,
+            self.config.total_steps,
+            0.01,
+            0.1,
         )
+        lr_scheduler_config = {"scheduler": scheduler, "interval": "step", "frequency": 1}
+        return {"optimizer": optimizer, "lr_scheduler": lr_scheduler_config}
 
-        return [optimizer], [scheduler]
-
-    def embed(self, prompts: torch.Tensor):
+    def embed(self, x: torch.Tensor):
         """Embeds prompts of size (B, C) into (B, C, Z) where Z is the embedding dimension"""
-        return self.model.embed(prompts)
-
-    def generate_batch(self, prompts: torch.Tensor, max_tokens: int, temperature: float = 0.2) -> torch.Tensor:
-        """Generates climbs from a batch of tokenized and padded prompts"""
-        assert prompts.size(1) == self.config.context_len, "Prompts shape must match context length"
-        for _ in range(max_tokens):
-            current_context = prompts[:, -self.config.context_len :]
-            next_prompt = self._generate_token(current_context, temperature)
-            prompts = torch.cat((prompts, next_prompt), dim=1)  # append the new token to the prompt
-        return prompts
+        mask = x != self.tokenizer.pad_token_id
+        mask = ~mask.unsqueeze(1).unsqueeze(2)
+        return self.model.embed(x, mask)
 
     def _generate_token(self, prompts: torch.Tensor, temperature: float = 0.2) -> torch.Tensor:
         """Generate a single token"""
@@ -242,7 +232,7 @@ class GPTModel(L.LightningModule):
         next_prompt = torch.multinomial(logit_probs, num_samples=1)
         return next_prompt
 
-    def generate_single(self, prompt: torch.Tensor, temperature: float = 0.2) -> torch.Tensor:
+    def generate(self, prompt: torch.Tensor, temperature: float = 0.2) -> torch.Tensor:
         """Generate until EOS token is reached (not batched)"""
         assert prompt.size() == (1, self.config.context_len), "Prompt shape must be (1, context_len)"
         # Generate until EOS token is reached
@@ -263,5 +253,5 @@ class GPTModel(L.LightningModule):
     ) -> tuple[str, str, str]:
         """Generate a climb from a string of frames, angle, and grade"""
         tokenized = self.tokenizer.encode(frames, angle, grade, pad=self.config.context_len, eos=False).to(self.device)
-        generated = self.generate_single(tokenized.unsqueeze(0), temperature)
+        generated = self.generate(tokenized.unsqueeze(0), temperature)
         return self.tokenizer.decode(generated.squeeze(0), clean=True)

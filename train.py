@@ -26,13 +26,14 @@ parser.add_argument("--grade_mask_rate", type=float, default=0.0)
 parser.add_argument("--batch_size", type=int, default=1024)
 parser.add_argument("--epochs", type=int, default=250)
 parser.add_argument("--lr", type=float, default=6e-4)
+parser.add_argument("--warmup_steps", type=float, default=6e-4)
 parser.add_argument("--wd", type=float, default=1e-1)
 # model params
 parser.add_argument("--n_head", type=int, default=8)
 parser.add_argument("--n_layer", type=int, default=8)
 parser.add_argument("--n_embed", type=int, default=512)
 parser.add_argument("--context_len", type=int, default=64)
-parser.add_argument("--dropout", type=float, default=0.1)
+parser.add_argument("--dropout", type=float, default=0.0)
 parser.add_argument("--bias", type=str_to_bool, default=False)
 config = parser.parse_args()
 
@@ -46,20 +47,13 @@ ds = KilterGPTDataset(
     label_smoothing=config.label_smoothing,
 )
 
-prompts = [
-    ("p1136r12", 40, "5a"),
-    ("p1136r12", 40, "6a"),
-    ("p1136r12", 40, "7a"),
-    ("p1136r12", 40, "8a"),
-]
-torch.save(prompts, "data/prompts.pt")
-
-config.vocab_size = len(ds.tokenizer.encode_map)
 train, val = random_split(ds, [0.8, 0.2])
 
-train_dl = DataLoader(train, batch_size=config.batch_size, shuffle=True, pin_memory=True, num_workers=8)
-val_dl = DataLoader(val, batch_size=config.batch_size, shuffle=True, pin_memory=True, num_workers=8)
+train_dl = DataLoader(train, batch_size=config.batch_size, shuffle=True, pin_memory=True, num_workers=16)
+val_dl = DataLoader(val, batch_size=config.batch_size, shuffle=False, pin_memory=True, num_workers=16)
 
+config.vocab_size = len(ds.tokenizer.encode_map)
+config.total_steps = len(train_dl) * config.epochs
 model = GPTModel(config, ds.tokenizer)
 
 trainer = Trainer(
