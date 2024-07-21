@@ -14,25 +14,19 @@ class KilterGPTDataset(Dataset):
         context_len: int = 64,  # 1 hold == 2 tokens
         min_tokens: int = 5,  # smallest number of tokens in a sequence
         shuffle_tokens: bool = True,
-        angle: bool = True,
-        grade: bool = True,
         label_smoothing: bool = True,
         grade_mask_rate: float = 0.0,
     ):
         self.context_len = context_len
         self.min_tokens = min_tokens
-        self.angle = angle
-        self.grade = grade
         self.shuffle_tokens = shuffle_tokens
         self.df = pd.read_csv(filename)
         self.tokenizer = self._get_tokenizer()
         self.grade_mask_rate = grade_mask_rate
         self.label_smoothing = label_smoothing
-        if grade is False and grade_mask_rate > 0:
-            raise ValueError("grade_mask_rate > 0 requires grade=True")
 
     def _get_tokenizer(self):
-        return Tokenizer.from_df(self.df, angle=self.angle, grade=self.grade)
+        return Tokenizer.from_df(self.df)
 
     def __len__(self):
         return len(self.df)
@@ -47,27 +41,27 @@ class KilterGPTDataset(Dataset):
             row["font_grade"],
             shuffle=self.shuffle_tokens,
         )
-        n = tokenized.size(0)
+        n = tokenized.size(0)  # total tokens
         if n <= self.min_tokens:
             end = n
         else:
             end = random.randint(self.min_tokens, n)
-        start = max(0, end - self.context_len - 1)  # buffer start
+        start = max(0, end - self.context_len - 1)  # buffer start, - 1 for buffer overlap
         buffer = tokenized[start:end]
         x = buffer[:-1]
         y = buffer[1:]
-        x = pad_to(x, self.context_len, self.tokenizer.encode_map[self.tokenizer.pad_token])
-        y = pad_to(y, self.context_len, self.tokenizer.encode_map[self.tokenizer.pad_token])
         if self.label_smoothing:
             correct_set = self._get_correct_set(tokenized, end)
             y = self._create_smoothed_labels(y, correct_set)
+        x = self.tokenizer.pad(x, self.context_len)
+        y = self.tokenizer.pad(y, self.context_len)
         if self.grade_mask_rate > 0:
             x = self.mask_grade(x)
         return x, y
 
     def _create_smoothed_labels(self, y: torch.LongTensor, correct_set: torch.Tensor) -> torch.FloatTensor:
         """If the last token is a hold, smooth labels for all remaining holds."""
-        smooth_labels = torch.nn.functional.one_hot(y, num_classes=len(self.tokenizer.encode_map)).to(torch.float32)
+        smooth_labels = torch.nn.functional.one_hot(y, num_classes=len(self.tokenizer.encode_map)).float()
         if y[-1].item() in self.tokenizer.hold_token_ids:
             if correct_set.size(0) > 0:
                 smooth_labels[-1, correct_set] = 1.0

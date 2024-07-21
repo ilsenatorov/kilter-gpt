@@ -6,6 +6,7 @@ import lightning as L
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torchvision.ops import sigmoid_focal_loss
 
 from ..utils import Plotter, WarmupCosineSchedule
 
@@ -38,7 +39,7 @@ class CausalSelfAttention(nn.Module):
         self.n_embd = config.n_embed
         self.dropout = config.dropout
 
-    def forward(self, x: torch.Tensor, mask=None):
+    def forward(self, x: torch.Tensor):
         B, T, C = x.size()  # batch size, sequence length, embedding dimensionality (n_embd)
 
         # calculate query, key, values for all heads in batch and move head forward to be the batch dim
@@ -48,15 +49,8 @@ class CausalSelfAttention(nn.Module):
         v = v.view(B, T, self.n_head, C // self.n_head).transpose(1, 2)  # (B, nh, T, hs)
 
         # causal self-attention; Self-attend: (B, nh, T, hs) x (B, nh, hs, T) -> (B, nh, T, T)
-        if mask is None:
-            mask = torch.ones((B, T), device=x.device).bool()
         y = F.scaled_dot_product_attention(
-            q,
-            k,
-            v,
-            attn_mask=mask,
-            dropout_p=self.dropout if self.training else 0,
-            is_causal=True,
+            q, k, v, attn_mask=None, dropout_p=self.dropout if self.training else 0, is_causal=True
         )
         y = y.transpose(1, 2).contiguous().view(B, T, C)  # re-assemble all head outputs side by side
         y = self.resid_dropout(self.c_proj(y))
@@ -89,8 +83,8 @@ class Block(nn.Module):
         self.ln_2 = LayerNorm(config.n_embed, bias=config.bias)
         self.mlp = MLP(config)
 
-    def forward(self, x, mask=None):
-        x = x + self.attn(self.ln_1(x), mask=mask)
+    def forward(self, x):
+        x = x + self.attn(self.ln_1(x))
         x = x + self.mlp(self.ln_2(x))
         return x
 
@@ -126,19 +120,19 @@ class GPT(L.LightningModule):
         elif isinstance(module, nn.Embedding):
             torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
 
-    def forward(self, idx, mask=None):
-        x = self.embed(idx, mask)
+    def forward(self, idx):
+        x = self.embed(idx)
         logits = self.lm_head(x)
         return logits
 
-    def embed(self, idx, mask=None):
+    def embed(self, idx):
         b, t = idx.size()
         pos = torch.arange(0, t, dtype=torch.long, device=self.device)  # shape (t)
         tok_emb = self.transformer.wte(idx)  # token embeddings of shape (b, t, n_embd)
         pos_emb = self.transformer.wpe(pos)  # position embeddings of shape (t, n_embd)
         x = self.transformer.drop(tok_emb + pos_emb)
         for block in self.transformer.h:
-            x = block(x, mask=mask)
+            x = block(x)
         x = self.transformer.ln_f(x)
         return x
 
@@ -156,20 +150,17 @@ class GPTModel(L.LightningModule):
 
     def get_loss(self, logits, targets):
         B, C, V = logits.shape
+        logits = logits.view(B * C, V)
         if len(targets.size()) == 2:  # If targets are class labels
-            logits = logits.view(B * C, V)
             targets = targets.view(B * C)
             loss = F.cross_entropy(logits, targets, ignore_index=self.tokenizer.pad_token_id)
         else:  # if targets are class probabilities
             targets = targets.view(B * C, V)
-            mask = targets[:, :, self.tokenizer.pad_token_id] != 1
-            loss = F.binary_cross_entropy_with_logits(logits[mask], targets[mask])
+            loss = F.binary_cross_entropy_with_logits(logits, targets, reduction="mean")
         return loss
 
     def forward(self, x):
-        mask = x.eq(self.tokenizer.pad_token_id)
-        mask = mask.unsqueeze(1).unsqueeze(2)
-        logits = self.model.forward(x, mask)
+        logits = self.model.forward(x)
         return logits
 
     def shared_step(self, batch, name="train"):
@@ -189,7 +180,7 @@ class GPTModel(L.LightningModule):
         """Used to visually monitor quality of generated data during training"""
         plotter = Plotter()
         for temp in [0.1, 0.2, 0.3, 0.5]:
-            texts = [self.generate_from_string("p1132r12", 40, grade, temp) for grade in ["5a", "6a", "7a", "8a"]]
+            texts = [self.generate_from_string("p1133r12", 40, grade, temp) for grade in ["5a", "6a", "7a", "8a"]]
             images = [plotter.plot_climb(x[0]) for x in texts]
             captions = [f"Angle: {x[1]}, Grade: {x[2]}, Temp: {temp}" for x in texts]
             self.logger.log_image(key=f"temp_{temp}", images=images, caption=captions)
@@ -220,9 +211,7 @@ class GPTModel(L.LightningModule):
 
     def embed(self, x: torch.Tensor):
         """Embeds prompts of size (B, C) into (B, C, Z) where Z is the embedding dimension"""
-        mask = x != self.tokenizer.pad_token_id
-        mask = ~mask.unsqueeze(1).unsqueeze(2)
-        return self.model.embed(x, mask)
+        return self.model.embed(x)
 
     def _generate_token(self, prompts: torch.Tensor, temperature: float = 0.2) -> torch.Tensor:
         """Generate a single token"""

@@ -18,15 +18,12 @@ parser = ArgumentParser()
 # dataset params
 parser.add_argument("--dataset", type=str, default="data/raw/climbs.csv")
 parser.add_argument("--min_tokens", type=int, default=10, help="Minimum number of tokens in a climb")
-parser.add_argument("--angle", type=str_to_bool, default=True)
-parser.add_argument("--grade", type=str_to_bool, default=True)
 parser.add_argument("--label_smoothing", type=str_to_bool, default=True)
 parser.add_argument("--grade_mask_rate", type=float, default=0.0)
 # training params
 parser.add_argument("--batch_size", type=int, default=1024)
-parser.add_argument("--epochs", type=int, default=250)
+parser.add_argument("--epochs", type=int, default=400)
 parser.add_argument("--lr", type=float, default=6e-4)
-parser.add_argument("--warmup_steps", type=float, default=6e-4)
 parser.add_argument("--wd", type=float, default=1e-1)
 # model params
 parser.add_argument("--n_head", type=int, default=8)
@@ -41,8 +38,6 @@ ds = KilterGPTDataset(
     config.dataset,
     context_len=config.context_len,
     min_tokens=config.min_tokens,
-    angle=config.angle,
-    grade=config.grade,
     grade_mask_rate=config.grade_mask_rate,
     label_smoothing=config.label_smoothing,
 )

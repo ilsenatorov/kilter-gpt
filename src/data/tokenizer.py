@@ -25,7 +25,10 @@ def pad_to(
     elif where == "right":
         left_pad = 0
         right_pad = size - tensor.size(0)
-    return torch.nn.functional.pad(tensor, (left_pad, right_pad), value=pad_value)
+    pad = [left_pad, right_pad]
+    if tensor.dim() == 2:
+        pad = (0, 0, left_pad, right_pad)
+    return torch.nn.functional.pad(tensor, pad, value=pad_value)
 
 
 class Tokenizer:
