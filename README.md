@@ -13,7 +13,9 @@ Then run the `preprocessing.ipynb` notebook to generate the data for training.
 
 ## Training
 
-Simply running the `train.py` script will start training the model. You can adjust the hyperparameters in the script.
+Simply running the `train.py` script will start training the model.
+You can adjust the hyperparameters in the script.
+By default the dataset is constructed from `data/raw/climbs.csv` file that is generated from the preprocessing notebook.
 
 ## TODO
 
@@ -21,7 +23,7 @@ Simply running the `train.py` script will start training the model. You can adju
 * Convert dataset to hf dataset?
 * Add a script to convert the model to onnx?
 * Plot UMAP of token embeddings to check for logical clustering
-* Learning rate warmup with annealing is probably better than plateau reduction.
+* ~~Learning rate warmup with annealing is probably better than plateau reduction.~~
 * ~~Add masking of padding tokens to attention mechanism~~
 * ~~Improve tokenizer functionality, move all the tokenization/padding logic to the tokenizer class~~
 * ~~Save and load tokenizer from json/pickle~~
@@ -39,7 +41,9 @@ This is not ideal for the task of generating climbing routes, where the order of
 
 ## Design choices and reasonings
 
-* GPT model is a simple baseline for text generation tasks, and it has been shown to work well for a variety of tasks.
-* The model is trained on the text representation of the climbing routes, which is a sequence of holds. Here the issues arises with the permutation invariance of the model, as the order of the holds is not important. Currently I solve it by shuffling the input sequence, but this is not ideal.
+* GPT model is a simple baseline for text generation tasks.
+* The model is trained on the text representation of the climbing routes, which is a sequence of holds. Here the issues arises with the permutation invariance of the model, as the order of the holds is not important.
+* Shuffling - the order of holds is shuffled on every pass, which should allow prompts that consist only of start and finish holds to generate different routes.
+* Label smoothing - if set to `True`, and the token to be predicted is a hold token, all of the remaining holds in a route will be accepted as valid answers. This is to prevent the model from overfitting to the exact order of holds.
 * Tokenisation - there are currently 5 types of tokens - special tokens (bos, eos, pad etc), hold tokens (hold id), hold role (color), wall angle and grade. Each climb is then represented as alternating pair of hold id and color tokens, with angle and difficulty prepended. This keeps the vocabulary small and manageable.
 * Every time I access a climb in the dataset, I cut out a random sequence of size `context_len` out of it. If the sequence is smaller I pad it on the left side. This is to simulate the model generating the climb one hold at a time.
