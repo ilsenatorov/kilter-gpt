@@ -233,6 +233,17 @@ class GPTModel(L.LightningModule):
                 break
         return prompt
 
+    def generate_batch(self, prompts: torch.Tensor, temperature: float = 0.2) -> torch.Tensor:
+        """Generate until EOS token is reached (batched)"""
+        for _ in range(999):
+            context = prompts[:, -self.config.context_len :]
+            next_prompt = self._generate_token(context, temperature)
+            prompt = torch.cat([prompt, next_prompt], dim=1)
+            # if eos token is present in every sample, break
+            if (prompt == self.tokenizer.eos_token_id).any(dim=1).all():
+                break
+        return prompt
+
     def generate_from_string(
         self,
         frames: str,

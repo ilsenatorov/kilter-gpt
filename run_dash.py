@@ -12,7 +12,7 @@ from PIL import Image
 from src.utils import Plotter
 
 # Sample Data (replace with your DataFrame)
-df = pd.read_csv("dash_generated.csv")
+df = pd.read_csv("data/dash.csv")
 plotter = Plotter()
 # Sample Image Frames (replace with your image loading logic)
 
@@ -64,12 +64,12 @@ def update_scatter(clickData):
             go.Scatter(
                 x=df["x_gpt"],
                 y=df["y_gpt"],
-                marker_color=df["temp"],
+                marker_color=df["difficulty_average"],
                 marker=dict(colorscale="Viridis", opacity=0.9, size=4),
                 # marker_symbol="x",
                 mode="markers",
-                hovertemplate="<b>Name: %{customdata[0]}</b><br>Grade: %{customdata[1]}<br>Angle: %{customdata[2]}<br>Temp: %{customdata[3]}",  # Add this line
-                customdata=df[["name", "angle", "font_grade", "temp"]].values,  # Add this line
+                hovertemplate="<b>Name: %{customdata[0]}</b><br>Grade: %{customdata[1]}<br>Angle: %{customdata[2]}",  # Add this line
+                customdata=df[["name", "angle", "font_grade"]].values,  # Add this line
             )
         ],
         "layout": go.Layout(
