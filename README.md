@@ -20,9 +20,9 @@ By default the dataset is constructed from `data/raw/climbs.csv` file that is ge
 ## TODO
 
 * Add some automatic evaluation metrics (similarity to real data, consistency, etc.)
-* Convert dataset to hf dataset?
-* Add a script to convert the model to onnx?
-* Plot UMAP of token embeddings to check for logical clustering
+* Add code to convert model to torchscript/onnx
+* Add code to host the model as http API
+* Try to add data from routes to the dataset
 * ~~Learning rate warmup with annealing is probably better than plateau reduction.~~
 * ~~Add masking of padding tokens to attention mechanism~~
 * ~~Improve tokenizer functionality, move all the tokenization/padding logic to the tokenizer class~~

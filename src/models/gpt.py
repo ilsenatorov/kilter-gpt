@@ -1,12 +1,9 @@
-import inspect
 import math
-import os
 
 import lightning as L
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torchvision.ops import sigmoid_focal_loss
 
 from ..utils import Plotter, WarmupCosineSchedule
 
@@ -253,12 +250,13 @@ class GPTModel(L.LightningModule):
         for _ in range(999):
             context = prompts[:, -self.config.context_len :]
             next_prompt = self._generate_token(context, temperature, p)
-            prompt = torch.cat([prompt, next_prompt], dim=1)
+            prompts = torch.cat([prompts, next_prompt], dim=1)
             # if eos token is present in every sample, break
-            if (prompt == self.tokenizer.eos_token_id).any(dim=1).all():
+            if (prompts == self.tokenizer.eos_token_id).any(dim=1).all():
                 break
-        return prompt
+        return prompts
 
+    @torch.jit.export
     def generate_from_string(
         self,
         frames: str,
