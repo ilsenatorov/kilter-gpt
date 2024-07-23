@@ -124,12 +124,15 @@ class Tokenizer:
 
     @staticmethod
     def split_tokens(frames: str) -> list[str]:
-        """If not whitespace separated, split the frames into tokens."""
-        assert " " not in frames, "No whitespace allowed in frames"
+        """Split the frames into tokens."""
         res = []
         for pair in frames.split("p")[1:]:
-            hold, color = pair.split("r")
-            res += [f"p{hold}", f"r{color}"]
+            hc = pair.split("r")
+            if len(hc) == 1:
+                res += [f"p{hc[0]}"]
+            else:
+                hold, color = hc
+                res += [f"p{hold}", f"r{color}"]
         return res
 
     def encode(

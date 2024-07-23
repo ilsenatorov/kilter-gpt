@@ -213,31 +213,46 @@ class GPTModel(L.LightningModule):
         """Embeds prompts of size (B, C) into (B, C, Z) where Z is the embedding dimension"""
         return self.model.embed(x)
 
-    def _generate_token(self, prompts: torch.Tensor, temperature: float = 0.2) -> torch.Tensor:
+    def _generate_token(self, prompts: torch.Tensor, temperature: float = 0.2, p: float = 1.0) -> torch.Tensor:
         """Generate a single token"""
         logits = self.forward(prompts)
-        logits = logits[:, -1, :] / temperature
-        logit_probs = F.softmax(logits, dim=-1)
-        next_prompt = torch.multinomial(logit_probs, num_samples=1)
+        logits = logits[:, -1, :] / temperature  # Get logits for the last position
+
+        if p < 1.0:
+            sorted_logits, sorted_indices = torch.sort(logits, descending=True)
+            cumulative_probs = torch.cumsum(F.softmax(sorted_logits, dim=-1), dim=-1)
+
+            # Remove tokens with cumulative probability above the threshold
+            sorted_indices_to_remove = cumulative_probs > p
+            sorted_indices_to_remove[..., 1:] = sorted_indices_to_remove[..., :-1].clone()
+            sorted_indices_to_remove[..., 0] = 0
+
+            # Scatter sorted tensors to original indexing
+            indices_to_remove = sorted_indices_to_remove.scatter(1, sorted_indices, sorted_indices_to_remove)
+            logits[indices_to_remove] = float("-inf")
+
+        # Sample from the filtered distribution
+        probs = F.softmax(logits, dim=-1)
+        next_prompt = torch.multinomial(probs, num_samples=1)
         return next_prompt
 
-    def generate(self, prompt: torch.Tensor, temperature: float = 0.2) -> torch.Tensor:
+    def generate(self, prompt: torch.Tensor, temperature: float = 0.2, p: float = 1.0) -> torch.Tensor:
         """Generate until EOS token is reached (not batched)"""
         assert prompt.size() == (1, self.config.context_len), "Prompt shape must be (1, context_len)"
         # Generate until EOS token is reached
         for _ in range(999):  # this could be a while loop, but just to be safe I use a for loop
             context = prompt[:, -self.config.context_len :]
-            next_prompt = self._generate_token(context, temperature)
+            next_prompt = self._generate_token(context, temperature, p)
             prompt = torch.cat((prompt, next_prompt), dim=1)
             if next_prompt == self.tokenizer.eos_token_id:
                 break
         return prompt
 
-    def generate_batch(self, prompts: torch.Tensor, temperature: float = 0.2) -> torch.Tensor:
+    def generate_batch(self, prompts: torch.Tensor, temperature: float = 0.2, p: float = 1.0) -> torch.Tensor:
         """Generate until EOS token is reached (batched)"""
         for _ in range(999):
             context = prompts[:, -self.config.context_len :]
-            next_prompt = self._generate_token(context, temperature)
+            next_prompt = self._generate_token(context, temperature, p)
             prompt = torch.cat([prompt, next_prompt], dim=1)
             # if eos token is present in every sample, break
             if (prompt == self.tokenizer.eos_token_id).any(dim=1).all():
@@ -250,8 +265,9 @@ class GPTModel(L.LightningModule):
         angle: int,
         grade: str,
         temperature: float = 0.2,
+        p: float = 1.0,
     ) -> tuple[str, str, str]:
         """Generate a climb from a string of frames, angle, and grade"""
         tokenized = self.tokenizer.encode(frames, angle, grade, pad=self.config.context_len, eos=False).to(self.device)
-        generated = self.generate(tokenized.unsqueeze(0), temperature)
+        generated = self.generate(tokenized.unsqueeze(0), temperature, p)
         return self.tokenizer.decode(generated.squeeze(0), clean=True)
