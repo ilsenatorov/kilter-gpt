@@ -1,16 +1,17 @@
 import torch
 from fastapi import FastAPI
 
+import wandb
 from src.models.gpt import GPTModel
 
 app = FastAPI()
 
 MODEL_NAME = "model-h7iskggx:v0"
 
-# run = wandb.init(name="model_download")
-# artifact = run.use_artifact(f"ilsenatorov/kilter-gpt/{MODEL_NAME}", type="model")
-# artifact_dir = artifact.download()
-# wandb.finish()
+run = wandb.init(name="model_download")
+artifact = run.use_artifact(f"ilsenatorov/kilter-gpt/{MODEL_NAME}", type="model")
+artifact_dir = artifact.download()
+wandb.finish()
 
 model = GPTModel.load_from_checkpoint(f"artifacts/{MODEL_NAME}/model.ckpt").to("cpu")
 model.eval()
