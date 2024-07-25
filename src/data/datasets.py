@@ -4,7 +4,7 @@ import pandas as pd
 import torch
 from torch.utils.data import Dataset
 
-from .tokenizer import Tokenizer, pad_to
+from .tokenizer import Tokenizer
 
 
 class KilterGPTDataset(Dataset):
@@ -15,15 +15,14 @@ class KilterGPTDataset(Dataset):
         min_tokens: int = 5,  # smallest number of tokens in a sequence
         shuffle_tokens: bool = True,
         label_smoothing: bool = True,
-        grade_mask_rate: float = 0.0,
     ):
         self.context_len = context_len
         self.min_tokens = min_tokens
         self.shuffle_tokens = shuffle_tokens
         self.df = pd.read_csv(filename)
         self.tokenizer = self._get_tokenizer()
-        self.grade_mask_rate = grade_mask_rate
         self.label_smoothing = label_smoothing
+        self.eval = False
 
     def _get_tokenizer(self):
         return Tokenizer.from_df(self.df)
@@ -55,8 +54,6 @@ class KilterGPTDataset(Dataset):
             y = self._create_smoothed_labels(y, correct_set)
         x = self.tokenizer.pad(x, self.context_len)
         y = self.tokenizer.pad(y, self.context_len)
-        if self.grade_mask_rate > 0:
-            x = self.mask_grade(x)
         return x, y
 
     def _create_smoothed_labels(self, y: torch.LongTensor, correct_set: torch.Tensor) -> torch.FloatTensor:
@@ -71,10 +68,3 @@ class KilterGPTDataset(Dataset):
         """Get the set of correct tokens for the last token in the sequence."""
         suffix = tokenized[end:]
         return suffix[torch.isin(suffix, self.tokenizer.hold_token_ids)]
-
-    def mask_grade(self, x: torch.LongTensor) -> torch.LongTensor:
-        """Randomly mask the grade token."""
-        mask = random.random() < self.grade_mask_rate
-        if mask:
-            x[torch.isin(x, self.tokenizer.grade_token_ids)] = self.tokenizer.mask_token_id
-        return x

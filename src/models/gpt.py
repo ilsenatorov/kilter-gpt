@@ -142,8 +142,8 @@ class GPTModel(L.LightningModule):
         self.save_hyperparameters()
         self.config = config
         self.tokenizer = tokenizer
-        # self.model = GPT(self.config)
-        self.model = torch.compile(GPT(self.config))
+        self.model = GPT(self.config)
+        # self.model = torch.compile(GPT(self.config))
 
     def get_loss(self, logits, targets):
         B, C, V = logits.shape

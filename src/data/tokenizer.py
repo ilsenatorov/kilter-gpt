@@ -12,6 +12,13 @@ def shuffle_holds(climb: str) -> str:
     return "".join(["p" + x.strip() for x in holds])
 
 
+def sort_holds(climb: str) -> str:
+    """Sort the holds in a climb"""
+    holds = climb.split("p")[1:]
+    holds.sort()
+    return "".join(["p" + x.strip() for x in holds])
+
+
 def pad_to(
     tensor: torch.Tensor,
     size: int,
@@ -163,6 +170,14 @@ class Tokenizer:
             t = self.pad(t, pad)
         return t
 
+    def onehot(self, frames: str) -> torch.Tensor:
+        """Save presence/absence of each hold in a one-hot tensor"""
+        t = torch.zeros(len(self.encode_map), dtype=torch.long)
+        for token in self.split_tokens(frames):
+            if token.startswith("p"):
+                t[self.encode_map[token]] = 1
+        return t
+
     def decode(self, x: torch.Tensor, clean: bool = False) -> list | tuple:
         decoded = []
         for token in x.tolist():
@@ -173,9 +188,6 @@ class Tokenizer:
         if clean:
             return self.clean(decoded)
         return decoded
-
-    def decode_batch(self, x: Iterable[torch.Tensor], clean: bool = False) -> list | tuple:
-        return [self.decode(y, clean) for y in x]
 
     def clean(self, x: list[str]) -> tuple:
         """Remove special tokens from the decoded text"""
