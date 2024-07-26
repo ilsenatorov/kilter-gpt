@@ -142,8 +142,7 @@ class GPTModel(L.LightningModule):
         self.save_hyperparameters()
         self.config = config
         self.tokenizer = tokenizer
-        # self.model = GPT(self.config)
-        self.model = torch.compile(GPT(self.config))
+        self.model = GPT(self.config)
 
     def get_loss(self, logits, targets):
         B, C, V = logits.shape
@@ -172,6 +171,13 @@ class GPTModel(L.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         return self.shared_step(batch, "val")
+
+    def test_step(self, batch, batch_idx):
+        text, target = batch
+        logits = self.forward(text)
+        loss = self.get_loss(logits, target)
+        # self.log(f"{name}/loss", loss)
+        return loss
 
     def plot_generated_climbs(self):
         """Used to visually monitor quality of generated data during training"""
