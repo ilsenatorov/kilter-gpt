@@ -163,6 +163,14 @@ class Tokenizer:
             t = self.pad(t, pad)
         return t
 
+    def onehot(self, frames: str) -> torch.Tensor:
+        """Save presence/absence of each hold in a one-hot tensor"""
+        t = torch.zeros(len(self.encode_map), dtype=torch.long)
+        for token in self.split_tokens(frames):
+            if token.startswith("p"):
+                t[self.encode_map[token]] = 1
+        return t
+
     def decode(self, x: torch.Tensor, clean: bool = False) -> list | tuple:
         decoded = []
         for token in x.tolist():

@@ -29,7 +29,7 @@ parser.add_argument("--n_head", type=int, default=8)
 parser.add_argument("--n_layer", type=int, default=8)
 parser.add_argument("--n_embed", type=int, default=512)
 parser.add_argument("--context_len", type=int, default=64)
-parser.add_argument("--dropout", type=float, default=0.0)
+parser.add_argument("--dropout", type=float, default=0.2)
 parser.add_argument("--bias", type=str_to_bool, default=False)
 config = parser.parse_args()
 
@@ -37,7 +37,6 @@ ds = KilterGPTDataset(
     config.dataset,
     context_len=config.context_len,
     min_tokens=config.min_tokens,
-    grade_mask_rate=config.grade_mask_rate,
     label_smoothing=config.label_smoothing,
 )
 
@@ -47,12 +46,12 @@ test.eval = True
 
 train_dl = DataLoader(train, batch_size=config.batch_size, shuffle=True, pin_memory=True, num_workers=16)
 val_dl = DataLoader(val, batch_size=config.batch_size, shuffle=False, pin_memory=True, num_workers=16)
-test_dl = DataLoader(test, batch_size=config.batch_size, shuffle=False, pin_memory=True, num_workers=16)
+# test_dl = DataLoader(test, batch_size=config.batch_size, shuffle=False, pin_memory=True, num_workers=16)
 
 config.vocab_size = len(ds.tokenizer.encode_map)
 config.total_steps = len(train_dl) * config.epochs
 model = GPTModel(config, ds.tokenizer)
-model = torch.compile(model)
+# model = torch.compile(model)
 
 trainer = Trainer(
     devices=-1,
@@ -68,4 +67,4 @@ trainer = Trainer(
 )
 
 trainer.fit(model, train_dataloaders=train_dl, val_dataloaders=val_dl)
-trainer.test(model, test_dataloaders=test_dl)
+# trainer.test(model, test_dataloaders=test_dl)
