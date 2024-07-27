@@ -173,11 +173,8 @@ class GPTModel(L.LightningModule):
         return self.shared_step(batch, "val")
 
     def test_step(self, batch, batch_idx):
-        text, target = batch
-        logits = self.forward(text)
-        loss = self.get_loss(logits, target)
-        # self.log(f"{name}/loss", loss)
-        return loss
+        prompt, target = batch
+        generated = self.generate_batch(prompt, temperature=0.2, p=0.7)
 
     def plot_generated_climbs(self):
         """Used to visually monitor quality of generated data during training"""

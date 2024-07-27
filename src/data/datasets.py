@@ -69,8 +69,8 @@ class KilterGPTDataset(Dataset):
         )
         n_tokens = tokenized.size(0)
         prompt_size = int(n_tokens * self.prompt_size)
-        x = tokenized[:prompt_size]
-        y = tokenized[prompt_size:]
+        x = self.tokenizer.pad(tokenized[:prompt_size], self.context_len)
+        y = self.tokenizer.pad(tokenized, self.context_len)
         return x, y
 
     def __getitem__(self, idx: int):
@@ -91,10 +91,3 @@ class KilterGPTDataset(Dataset):
         """Get the set of correct tokens for the last token in the sequence."""
         suffix = tokenized[end:]
         return suffix[torch.isin(suffix, self.tokenizer.hold_token_ids)]
-
-    def mask_grade(self, x: torch.LongTensor) -> torch.LongTensor:
-        """Randomly mask the grade token."""
-        mask = random.random() < self.grade_mask_rate
-        if mask:
-            x[torch.isin(x, self.tokenizer.grade_token_ids)] = self.tokenizer.mask_token_id
-        return x

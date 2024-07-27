@@ -47,7 +47,7 @@ test.eval = True
 
 train_dl = DataLoader(train, batch_size=config.batch_size, shuffle=True, pin_memory=True, num_workers=16)
 val_dl = DataLoader(val, batch_size=config.batch_size, shuffle=False, pin_memory=True, num_workers=16)
-val_dl = DataLoader(test, batch_size=config.batch_size, shuffle=False, pin_memory=True, num_workers=16)
+test_dl = DataLoader(test, batch_size=config.batch_size, shuffle=False, pin_memory=True, num_workers=16)
 
 config.vocab_size = len(ds.tokenizer.encode_map)
 config.total_steps = len(train_dl) * config.epochs
