@@ -23,6 +23,10 @@ By default the dataset is constructed from `data/raw/climbs.csv` file that is ge
 * Add code to convert model to torchscript/onnx
 * Add code to host the model as http API
 * Try to add data from routes to the dataset
+* Generation that ensures sensibility - no breaking limits.
+* Tests for basic functionality, especially HTTP API
+* Simple metrics for diversity/sensibility
+* Hyperparameter tuning
 * ~~Learning rate warmup with annealing is probably better than plateau reduction.~~
 * ~~Add masking of padding tokens to attention mechanism~~
 * ~~Improve tokenizer functionality, move all the tokenization/padding logic to the tokenizer class~~

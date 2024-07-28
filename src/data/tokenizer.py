@@ -134,6 +134,10 @@ class Tokenizer:
                 hold, color = hc
                 res += [f"p{hold}", f"r{color}"]
         return res
+    
+    @property
+    def vocab_size(self):
+        return len(self.encode_map)
 
     def encode(
         self,

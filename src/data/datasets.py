@@ -10,24 +10,23 @@ from .tokenizer import Tokenizer, pad_to
 class KilterGPTDataset(Dataset):
     def __init__(
         self,
-        filename,
+        filename: str,
+        tokenizer: Tokenizer,
+        *,
         context_len: int = 64,  # 1 hold == 2 tokens
         min_tokens: int = 5,  # smallest number of tokens in a sequence
         shuffle_tokens: bool = True,
         label_smoothing: bool = True,
         prompt_size: float = 0.5,
     ):
+        self.df = pd.read_csv(filename)
+        self.tokenizer = tokenizer
         self.context_len = context_len
         self.min_tokens = min_tokens
         self.shuffle_tokens = shuffle_tokens
-        self.df = pd.read_csv(filename)
-        self.tokenizer = self._get_tokenizer()
         self.label_smoothing = label_smoothing
-        self.eval = False
         self.prompt_size = prompt_size
-
-    def _get_tokenizer(self):
-        return Tokenizer.from_df(self.df)
+        self.eval = False
 
     def __len__(self):
         return len(self.df)
