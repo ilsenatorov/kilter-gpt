@@ -4,6 +4,7 @@ import lightning as L
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import plotly.graph_objects as go
 
 from ..utils import Plotter, WarmupCosineSchedule
 
@@ -143,7 +144,7 @@ class GPTModel(L.LightningModule):
         self.config = config
         self.tokenizer = tokenizer
         self.model = GPT(self.config)
-        # self.model = torch.compile(GPT(self.config))
+        # self.model = torch.compile(self.model)
 
     def get_loss(self, logits, targets):
         B, C, V = logits.shape
@@ -173,11 +174,22 @@ class GPTModel(L.LightningModule):
     def validation_step(self, batch, batch_idx):
         return self.shared_step(batch, "val")
 
+    def test_step(self, batch, batch_idx):
+        self.bc_target = []
+        self.bc_generated = []
+        prompt, target = batch
+        generated = self.generate_batch(prompt, temperature=0.2, p=0.7)
+        bc_target = torch.bincount(target.flatten(), minlength=self.config.vocab_size)
+        bc_generated = torch.bincount(generated.flatten(), minlength=self.config.vocab_size)
+        self.bc_target.append(bc_target)
+        self.bc_generated.append(bc_generated)
+    
+
     def plot_generated_climbs(self):
         """Used to visually monitor quality of generated data during training"""
         plotter = Plotter()
         for temp in [0.1, 0.2, 0.3, 0.5]:
-            texts = [self.generate_from_string("p1133r12", 40, grade, temp) for grade in ["5a", "6a", "7a", "8a"]]
+            texts = [self.generate_from_string("p1136r12", 40, grade, temp) for grade in ["5a", "6a", "7a", "8a"]]
             images = [plotter.plot_climb(x[0]) for x in texts]
             captions = [f"Angle: {x[1]}, Grade: {x[2]}, Temp: {temp}" for x in texts]
             self.logger.log_image(key=f"temp_{temp}", images=images, caption=captions)
@@ -269,3 +281,16 @@ class GPTModel(L.LightningModule):
         tokenized = self.tokenizer.encode(frames, angle, grade, pad=self.config.context_len, eos=False).to(self.device)
         generated = self.generate(tokenized.unsqueeze(0), temperature, p)
         return self.tokenizer.decode(generated.squeeze(0), clean=True)
+
+    @staticmethod
+    def load_from_wandb(wandb_model_name:str) -> "GPTModel":
+        """Use self.load_from_checkpoint to download model weights from wandb"""
+        import os
+        file_path = f"artifacts/{wandb_model_name}/model.ckpt"
+        if not os.path.exists(file_path):
+            import wandb
+            api = wandb.Api()
+            artifact = api.artifact(f"ilsenatorov/kilter-gpt/{wandb_model_name}")
+            artifact.download()
+        return GPTModel.load_from_checkpoint(file_path)
+        

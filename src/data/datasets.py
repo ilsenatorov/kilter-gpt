@@ -10,27 +10,28 @@ from .tokenizer import Tokenizer
 class KilterGPTDataset(Dataset):
     def __init__(
         self,
-        filename,
+        filename: str,
+        tokenizer: Tokenizer,
+        *,
         context_len: int = 64,  # 1 hold == 2 tokens
         min_tokens: int = 5,  # smallest number of tokens in a sequence
         shuffle_tokens: bool = True,
         label_smoothing: bool = True,
+        prompt_size: float = 0.5,
     ):
+        self.df = pd.read_csv(filename)
+        self.tokenizer = tokenizer
         self.context_len = context_len
         self.min_tokens = min_tokens
         self.shuffle_tokens = shuffle_tokens
-        self.df = pd.read_csv(filename)
-        self.tokenizer = self._get_tokenizer()
         self.label_smoothing = label_smoothing
+        self.prompt_size = prompt_size
         self.eval = False
-
-    def _get_tokenizer(self):
-        return Tokenizer.from_df(self.df)
 
     def __len__(self):
         return len(self.df)
 
-    def __getitem__(self, idx: int) -> tuple[torch.LongTensor, torch.Tensor]:
+    def _get_item_train(self, idx: int) -> tuple[torch.LongTensor, torch.Tensor]:
         """Get a random contiguous sequence of tokens from the frames column. Pad left to context_len."""
         row = self.df.iloc[idx]
         frames = row["frames"]
@@ -55,6 +56,27 @@ class KilterGPTDataset(Dataset):
         x = self.tokenizer.pad(x, self.context_len)
         y = self.tokenizer.pad(y, self.context_len)
         return x, y
+
+    def _get_item_eval(self, idx: int):
+        row = self.df.iloc[idx]
+        frames = row["frames"]
+        tokenized = self.tokenizer.encode(
+            frames,
+            row["angle"].item(),
+            row["font_grade"],
+            shuffle=self.shuffle_tokens,
+        )
+        n_tokens = tokenized.size(0)
+        prompt_size = int(n_tokens * self.prompt_size)
+        x = self.tokenizer.pad(tokenized[:prompt_size], self.context_len)
+        y = self.tokenizer.pad(tokenized, self.context_len)
+        return x, y
+
+    def __getitem__(self, idx: int):
+        if self.eval:
+            return self._get_item_eval(idx)
+        else:
+            return self._get_item_train(idx)
 
     def _create_smoothed_labels(self, y: torch.LongTensor, correct_set: torch.Tensor) -> torch.FloatTensor:
         """If the last token is a hold, smooth labels for all remaining holds."""
