@@ -1,10 +1,10 @@
 import math
 
 import lightning as L
+import plotly.graph_objects as go
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import plotly.graph_objects as go
 
 from ..utils import Plotter, WarmupCosineSchedule
 
@@ -183,7 +183,6 @@ class GPTModel(L.LightningModule):
         bc_generated = torch.bincount(generated.flatten(), minlength=self.config.vocab_size)
         self.bc_target.append(bc_target)
         self.bc_generated.append(bc_generated)
-    
 
     def plot_generated_climbs(self):
         """Used to visually monitor quality of generated data during training"""
@@ -283,14 +282,15 @@ class GPTModel(L.LightningModule):
         return self.tokenizer.decode(generated.squeeze(0), clean=True)
 
     @staticmethod
-    def load_from_wandb(wandb_model_name:str) -> "GPTModel":
+    def load_from_wandb(wandb_model_name: str) -> "GPTModel":
         """Use self.load_from_checkpoint to download model weights from wandb"""
         import os
+
         file_path = f"artifacts/{wandb_model_name}/model.ckpt"
         if not os.path.exists(file_path):
             import wandb
+
             api = wandb.Api()
             artifact = api.artifact(f"ilsenatorov/kilter-gpt/{wandb_model_name}")
             artifact.download()
         return GPTModel.load_from_checkpoint(file_path)
-        

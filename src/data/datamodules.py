@@ -1,9 +1,11 @@
+import random
 from typing import Literal
+
 import lightning as L
+import pandas as pd
 import torch
 from torch.utils.data import DataLoader, random_split
-import pandas as pd
-import random
+
 from .datasets import KilterGPTDataset
 from .tokenizer import Tokenizer
 
@@ -54,7 +56,6 @@ class KilterDataModule(L.LightningDataModule):
         )
         self.test.eval = True
         self.vocab_size = self.tokenizer.vocab_size
-        
 
     def _get_dataloader(self, dataset, shuffle: bool = False):
         return DataLoader(dataset, batch_size=self.batch_size, shuffle=shuffle, pin_memory=True, num_workers=16)
