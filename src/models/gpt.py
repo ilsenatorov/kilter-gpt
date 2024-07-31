@@ -1,7 +1,6 @@
 import math
 
 import lightning as L
-import plotly.graph_objects as go
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -22,7 +21,6 @@ class LayerNorm(nn.Module):
 
 
 class CausalSelfAttention(nn.Module):
-
     def __init__(self, config):
         super().__init__()
         assert config.n_embed % config.n_head == 0
@@ -56,7 +54,6 @@ class CausalSelfAttention(nn.Module):
 
 
 class MLP(nn.Module):
-
     def __init__(self, config):
         super().__init__()
         self.c_fc = nn.Linear(config.n_embed, 4 * config.n_embed, bias=config.bias)
@@ -73,7 +70,6 @@ class MLP(nn.Module):
 
 
 class Block(nn.Module):
-
     def __init__(self, config):
         super().__init__()
         self.ln_1 = LayerNorm(config.n_embed, bias=config.bias)

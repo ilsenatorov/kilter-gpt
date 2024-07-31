@@ -1,17 +1,12 @@
-import random
-from typing import Literal
-
 import lightning as L
 import pandas as pd
-import torch
-from torch.utils.data import DataLoader, random_split
+from torch.utils.data import DataLoader
 
 from .datasets import KilterGPTDataset
 from .tokenizer import Tokenizer
 
 
 class KilterDataModule(L.LightningDataModule):
-
     def __init__(
         self,
         batch_size: int = 64,
