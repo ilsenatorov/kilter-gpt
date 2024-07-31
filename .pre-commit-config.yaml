@@ -1,9 +1,8 @@
 repos:
-  - repo: https://github.com/ilsenatorov/pre-commit-jupyter
-    rev: v1.3.2
+  - repo: https://github.com/srstevenson/nb-clean
+    rev: 3.3.0
     hooks:
-      - id: jupyter-notebook-cleanup
-        args: [--remove-cell-metadata, --remove-kernel-metadata]
+      - id: nb-clean
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.6.0
     hooks:
