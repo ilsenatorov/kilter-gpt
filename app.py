@@ -2,7 +2,7 @@ import torch
 from fastapi import FastAPI
 
 import wandb
-from src.models.gpt import GPTModel
+from kiltergpt.models.gpt import GPTModel
 
 app = FastAPI()
 

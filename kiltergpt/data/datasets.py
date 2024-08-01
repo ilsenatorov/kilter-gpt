@@ -28,7 +28,7 @@ class KilterGPTDataset(Dataset):
         self.prompt_size = prompt_size
         self.eval = False
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.df)
 
     def _get_item_train(self, idx: int) -> tuple[torch.LongTensor, torch.Tensor]:
@@ -57,7 +57,7 @@ class KilterGPTDataset(Dataset):
         y = self.tokenizer.pad(y, self.context_len)
         return x, y
 
-    def _get_item_eval(self, idx: int):
+    def _get_item_eval(self, idx: int) -> tuple[torch.LongTensor, torch.LongTensor]:
         row = self.df.iloc[idx]
         frames = row["frames"]
         tokenized = self.tokenizer.encode(
@@ -72,7 +72,7 @@ class KilterGPTDataset(Dataset):
         y = self.tokenizer.pad(tokenized, self.context_len)
         return x, y
 
-    def __getitem__(self, idx: int):
+    def __getitem__(self, idx: int) -> tuple[torch.LongTensor, torch.Tensor]:
         if self.eval:
             return self._get_item_eval(idx)
         else:
@@ -86,7 +86,7 @@ class KilterGPTDataset(Dataset):
                 smooth_labels[-1, correct_set] = 1.0
         return smooth_labels
 
-    def _get_correct_set(self, tokenized: torch.LongTensor, end: int):
+    def _get_correct_set(self, tokenized: torch.LongTensor, end: int) -> torch.LongTensor:
         """Get the set of correct tokens for the last token in the sequence."""
         suffix = tokenized[end:]
         return suffix[torch.isin(suffix, self.tokenizer.hold_token_ids)]

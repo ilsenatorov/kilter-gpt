@@ -158,6 +158,9 @@ class Tokenizer:
         eos: bool = True,
         pad: int = 0,
     ) -> torch.Tensor:
+        assert " " not in frames, "Frames should not contain spaces"
+        # only p, r and digits are allowed
+        assert all(x in "0123456789pr" for x in frames), "Frames should only contain p, r and digits"
         tokens = []
         if bos:
             tokens.append(self.bos_token)
@@ -203,9 +206,9 @@ class Tokenizer:
         x = x[start + 1 : end]
         for i in x:
             if i.startswith("a"):
-                angle = i
+                angle = int(i[1:])
             elif i.startswith("f"):
-                grade = i
+                grade = i[1:]
             elif i.startswith("p") or i.startswith("r"):
                 frames += i
         return frames, angle, grade

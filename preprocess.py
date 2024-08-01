@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from src.utils import KilterPolice
+from kiltergpt.utils import KilterPolice
 
 parser = ArgumentParser()
 parser.add_argument("--data_dir", type=str, default="data")

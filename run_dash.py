@@ -9,7 +9,7 @@ from dash import dcc, html
 from dash.dependencies import Input, Output
 from PIL import Image
 
-from src.utils import Plotter
+from kiltergpt.utils import Plotter
 
 # Sample Data (replace with your DataFrame)
 df = pd.read_csv("data/generated_climbs.csv")

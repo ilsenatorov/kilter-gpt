@@ -5,9 +5,9 @@ import torch
 from lightning.pytorch import Trainer
 from lightning.pytorch.loggers import WandbLogger
 
-from src.data.datamodules import KilterDataModule
-from src.models.gpt import GPTModel
-from src.utils import str_to_bool
+from kiltergpt.data.datamodules import KilterDataModule
+from kiltergpt.models.gpt import GPTModel
+from kiltergpt.utils import str_to_bool
 
 L.seed_everything(42)
 torch.set_float32_matmul_precision("medium")
