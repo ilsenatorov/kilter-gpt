@@ -1,3 +1,4 @@
+import json
 from typing import Literal
 
 import numpy as np
@@ -221,3 +222,13 @@ class Tokenizer:
 
     def __repr__(self):
         return f"Tokenizer, tokens:{len(self.encode_map)}, hold:{len(self.hold_tokens)}, angle:{len(self.angle_tokens)}, grade:{len(self.grade_tokens)}"
+
+    def to_json(self, path: str):
+        with open(path, "w") as f:
+            json.dump(self.encode_map, f)
+
+    @staticmethod
+    def from_json(path: str) -> "Tokenizer":
+        with open(path, "r") as f:
+            encode_map = json.load(f)
+        return Tokenizer(encode_map)

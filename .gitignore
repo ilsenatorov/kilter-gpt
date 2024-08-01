@@ -4,9 +4,11 @@
 !.pre-commit-config.yaml
 data/*
 !data/db.sqlite3
+!data/tokenizer.json
 __*__
 wandb/
 kilter-gpt/
 test.ipynb
 artifacts/*
+*.egg-info
 *.sh
