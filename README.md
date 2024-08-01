@@ -27,6 +27,7 @@ By default the dataset is constructed from `data/raw/climbs.csv` file that is ge
 * Tests for basic functionality, especially HTTP API
 * Simple metrics for diversity/sensibility
 * Hyperparameter tuning
+* Add simple tests for the model
 * ~~Learning rate warmup with annealing is probably better than plateau reduction.~~
 * ~~Add masking of padding tokens to attention mechanism~~
 * ~~Improve tokenizer functionality, move all the tokenization/padding logic to the tokenizer class~~
