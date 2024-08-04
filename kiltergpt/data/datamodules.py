@@ -52,14 +52,14 @@ class KilterDataModule(L.LightningDataModule):
         self.test.eval = True
         self.vocab_size = self.tokenizer.vocab_size
 
-    def _get_dataloader(self, dataset, shuffle: bool = False):
+    def _get_dataloader(self, dataset, shuffle: bool = False) -> DataLoader:
         return DataLoader(dataset, batch_size=self.batch_size, shuffle=shuffle, pin_memory=True, num_workers=16)
 
-    def train_dataloader(self):
+    def train_dataloader(self) -> DataLoader:
         return self._get_dataloader(self.train, shuffle=True)
 
-    def val_dataloader(self):
+    def val_dataloader(self) -> DataLoader:
         return self._get_dataloader(self.val)
 
-    def test_dataloader(self):
+    def test_dataloader(self) -> DataLoader:
         return self._get_dataloader(self.test)
