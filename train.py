@@ -1,4 +1,4 @@
-from argparse import ArgumentParser
+from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
 
 import lightning as L
 import torch
@@ -13,29 +13,26 @@ L.seed_everything(42)
 torch.set_float32_matmul_precision("medium")
 
 
-parser = ArgumentParser()
+parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
 # dataset params
-parser.add_argument("--dataset", type=str, default="data/raw/climbs.csv")
-parser.add_argument("--min_tokens", type=int, default=10, help="Minimum number of tokens in a climb")
-parser.add_argument("--label_smoothing", type=str_to_bool, default=True)
+parser.add_argument("--label_smoothing", type=str_to_bool, default=True, help="Multiple choices for middle holds")
 # training params
-parser.add_argument("--batch_size", type=int, default=1024)
-parser.add_argument("--epochs", type=int, default=500)
-parser.add_argument("--lr", type=float, default=6e-4)
-parser.add_argument("--wd", type=float, default=1e-1)
+parser.add_argument("--batch_size", type=int, default=1024, help="Batch size")
+parser.add_argument("--epochs", type=int, default=500, help="Number of epochs")
+parser.add_argument("--lr", type=float, default=6e-4, help="Max learning rate")
+parser.add_argument("--wd", type=float, default=1e-1, help="Weight decay")
 # model params
-parser.add_argument("--n_head", type=int, default=8)
-parser.add_argument("--n_layer", type=int, default=8)
-parser.add_argument("--n_embed", type=int, default=512)
-parser.add_argument("--context_len", type=int, default=64)
-parser.add_argument("--dropout", type=float, default=0.2)
-parser.add_argument("--bias", type=str_to_bool, default=False)
+parser.add_argument("--n_head", type=int, default=8, help="Number of attention heads")
+parser.add_argument("--n_layer", type=int, default=8, help="Number of transformer layers")
+parser.add_argument("--n_embed", type=int, default=512, help="Embedding dimension")
+parser.add_argument("--context_len", type=int, default=64, help="Context length")
+parser.add_argument("--dropout", type=float, default=0.2, help="Dropout")
+parser.add_argument("--bias", type=str_to_bool, default=False, help="Use bias in attention layers")
 config = parser.parse_args()
 
 dm = KilterDataModule(
     batch_size=config.batch_size,
     context_len=config.context_len,
-    min_tokens=config.min_tokens,
     label_smoothing=config.label_smoothing,
 )
 dm.setup()
@@ -43,7 +40,6 @@ dm.setup()
 config.vocab_size = dm.vocab_size
 config.total_steps = len(dm.train_dataloader()) * config.epochs
 model = GPTModel(config, dm.tokenizer)
-# model = torch.compile(model)
 
 trainer = Trainer(
     devices=-1,

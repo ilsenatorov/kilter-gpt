@@ -13,7 +13,6 @@ class KilterDataModule(L.LightningDataModule):
         num_workers: int = 8,
         pin_memory: bool = True,
         context_len: int = 64,
-        min_tokens: int = 10,
         label_smoothing: bool = True,
     ):
         super().__init__()
@@ -21,7 +20,6 @@ class KilterDataModule(L.LightningDataModule):
         self.num_workers = num_workers
         self.pin_memory = pin_memory
         self.context_len = context_len
-        self.min_tokens = min_tokens
         self.label_smoothing = label_smoothing
 
     def setup(self, stage=None):
@@ -31,7 +29,6 @@ class KilterDataModule(L.LightningDataModule):
             "data/processed/train.csv",
             self.tokenizer,
             context_len=self.context_len,
-            min_tokens=self.min_tokens,
             label_smoothing=self.label_smoothing,
         )
 
@@ -39,14 +36,12 @@ class KilterDataModule(L.LightningDataModule):
             "data/processed/val.csv",
             self.tokenizer,
             context_len=self.context_len,
-            min_tokens=self.min_tokens,
             label_smoothing=self.label_smoothing,
         )
         self.test = KilterGPTDataset(
             "data/processed/test.csv",
             self.tokenizer,
             context_len=self.context_len,
-            min_tokens=self.min_tokens,
             label_smoothing=self.label_smoothing,
         )
         self.test.eval = True
