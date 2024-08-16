@@ -1,0 +1,9 @@
+torch
+lightning
+torchmetrics
+rich
+wandb
+beartype
+pytest
+pytest-cov
+fastapi
