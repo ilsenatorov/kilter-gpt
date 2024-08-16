@@ -73,7 +73,7 @@ class Tokenizer:
 
     @property
     def color_token_ids(self):
-        return torch.tensor([self.encode_map[x] for x in self.color_tokens])
+        return torch.tensor([self.encode_map[x] for x in self.color_tokens()])
 
     @property
     def angle_token_ids(self):
@@ -159,7 +159,6 @@ class Tokenizer:
         pad: int = 0,
     ) -> torch.Tensor:
         assert " " not in frames, "Frames should not contain spaces"
-        # only p, r and digits are allowed
         assert all(x in "0123456789pr" for x in frames), "Frames should only contain p, r and digits"
         tokens = []
         if bos:

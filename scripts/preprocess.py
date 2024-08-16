@@ -7,11 +7,11 @@ import pandas as pd
 from kiltergpt.utils import KilterPolice
 
 parser = ArgumentParser()
-parser.add_argument("--data_dir", type=str, default="data")
-parser.add_argument("--min_ascents", type=int, default=1)
-parser.add_argument("--min_quality", type=int, default=2)
-parser.add_argument("--min_holds", type=int, default=4)
-parser.add_argument("--max_holds", type=int, default=28)
+parser.add_argument("--data_dir", type=str, default="data", help="Directory to save data, has to contain db.sqlite3")
+parser.add_argument("--min_ascents", type=int, default=1, help="Minimum number of ascents")
+parser.add_argument("--min_quality", type=int, default=2, help="Minimum quality")
+parser.add_argument("--min_holds", type=int, default=4, help="Minimum number of holds")
+parser.add_argument("--max_holds", type=int, default=28, help="Maximum number of holds")
 args = parser.parse_args()
 
 

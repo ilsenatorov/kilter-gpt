@@ -270,8 +270,8 @@ class GPTModel(L.LightningModule):
         angle: int,
         grade: str,
         temperature: float = 0.2,
-        p: float = 1.0,
-    ) -> tuple[str, str, str]:
+        p: float = 0.7,
+    ) -> tuple[str, int, str]:
         """Generate a climb from a string of frames, angle, and grade"""
         tokenized = self.tokenizer.encode(frames, angle, grade, pad=self.config.context_len, eos=False).to(self.device)
         generated = self.generate(tokenized.unsqueeze(0), temperature, p)
