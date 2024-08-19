@@ -227,4 +227,4 @@ class Tokenizer:
         return pad_to(x, size, self.encode_map[self.pad_token], where=where)
 
     def __repr__(self):
-        return f"Tokenizer, tokens:{len(self.encode_map)}, hold:{len(self.hold_tokens)}, angle:{len(self.angle_tokens)}, grade:{len(self.grade_tokens)}"
+        return f"Tokenizer, tokens:{len(self.encode_map)}, hold:{len(self.hold_tokens())}, angle:{len(self.angle_tokens())}, grade:{len(self.grade_tokens())}"
