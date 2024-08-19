@@ -2,29 +2,15 @@ import math
 
 import pytest
 
-from kiltergpt.utils import KilterPolice, str_to_bool
+from kiltergpt.utils import KilterPolice, Plotter, str_to_bool
 
 
 def test_str_to_bool():
-    assert str_to_bool("True") is True
-    assert str_to_bool("true") is True
-    assert str_to_bool("t") is True
-    assert str_to_bool("T") is True
-    assert str_to_bool("1") is True
-    assert str_to_bool("yes") is True
-    assert str_to_bool("Yes") is True
-    assert str_to_bool("y") is True
-    assert str_to_bool("Y") is True
+    for i in ["True", "true", "t", "T", "1", "yes", "Yes", "y", "Y"]:
+        assert str_to_bool(i) is True
 
-    assert str_to_bool("False") is False
-    assert str_to_bool("false") is False
-    assert str_to_bool("f") is False
-    assert str_to_bool("F") is False
-    assert str_to_bool("0") is False
-    assert str_to_bool("no") is False
-    assert str_to_bool("No") is False
-    assert str_to_bool("n") is False
-    assert str_to_bool("N") is False
+    for i in ["False", "false", "f", "F", "0", "no", "No", "n", "N"]:
+        assert str_to_bool(i) is False
 
     with pytest.raises(ValueError):
         str_to_bool("invalid")
@@ -68,3 +54,11 @@ def kilter_police_disallowed_things(kilter_police, sane_climb, broken_addition):
 def kilter_police_too_few(kilter_police):
     assert not kilter_police.check("")  # empty climb
     assert not kilter_police.check("p1r12")  # only one hold
+
+
+def test_plotter():
+    plotter = Plotter()
+    normal_plot = plotter.plot_climb("p1234r12")
+    assert normal_plot is not None
+    matplotlib_plot = plotter.plot_climb("p1234r12", True)
+    assert matplotlib_plot is not None

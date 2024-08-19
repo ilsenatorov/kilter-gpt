@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added a `CHANGELOG.md` file to keep track of changes in the project.
 - Added changelog-enforcer github action for pull request checks.
 - Added DataModule tests.
+- Added Plotter tests.
 
 ### Changed
 
