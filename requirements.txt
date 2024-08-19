@@ -12,3 +12,4 @@ pandas
 fastapi
 uvicorn
 httpx
+matplotlib
