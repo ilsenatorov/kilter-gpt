@@ -245,6 +245,8 @@ class GPTModel(L.LightningModule):
         logits = logits[-1, :] / temperature  # Get logits for the last position
         # After color token only hold or EOS token can be generated
         if penultimate_token in self.tokenizer.color_token_ids:
+            if len(prompt[prompt != self.tokenizer.eos_token_id]) > self.config.context_len - 2:
+                return torch.tensor([self.tokenizer.eos_token_id])
             mask = torch.zeros_like(logits, dtype=torch.bool)
             mask[self.tokenizer.hold_token_ids] = True
             mask[self.tokenizer.eos_token_id] = True
@@ -263,6 +265,7 @@ class GPTModel(L.LightningModule):
             context = prompt[-self.config.context_len :]
             next_prompt = self._generate_token(context, temperature, p)
             prompt = torch.cat((prompt, next_prompt), dim=0)
+            # If the prompt is too long, break the loop
         return prompt
 
     @torch.jit.export
