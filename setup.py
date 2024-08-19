@@ -1,5 +1,8 @@
 from setuptools import find_packages, setup
 
+with open("requirements.txt") as f:
+    requirements = f.read().splitlines()
+
 setup(
     name="kiltergpt",
     version="0.1.0",
@@ -7,20 +10,6 @@ setup(
     author="Ilya Senatorov",
     author_email="il.senatorov@protonmail.com",
     packages=find_packages(),
-    install_requires=[
-        "torch",
-        "torchvision",
-        "torchaudio",
-        "wandb",
-        "pytorch-lightning",
-        "plotly",
-        "pandas",
-        "numpy",
-        "matplotlib",
-        "ipykernel",
-        "jupyter",
-        "beartype",
-        # Add any other dependencies you might have
-    ],
-    python_requires=">=3.10",
+    install_requires=requirements,
+    python_requires=">=3.11",
 )
