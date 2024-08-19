@@ -58,7 +58,6 @@ kp = KilterPolice(set(holds.index), n_total_holds=(args.min_holds, args.max_hold
 df["valid"] = df["frames"].apply(kp.check)
 df = df[df["valid"]]
 
-df.to_csv("data/processed/all_climbs.csv")
 holds.to_csv("data/processed/holds.csv")
 grades.to_csv("data/processed/grades.csv")
 
