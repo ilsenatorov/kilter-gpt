@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pandas as pd
 import torch
 from torch.utils.data import Dataset
@@ -8,7 +10,7 @@ from .tokenizer import Tokenizer
 class KilterGPTDataset(Dataset):
     def __init__(
         self,
-        filename: str,
+        filename: str | Path,
         tokenizer: Tokenizer,
         *,
         context_len: int = 64,  # 1 hold == 2 tokens

@@ -42,10 +42,10 @@ config.total_steps = len(dm.train_dataloader()) * config.epochs
 model = GPTModel(config, dm.tokenizer)
 
 trainer = Trainer(
-    devices=-1,
+    # devices=-1,
     max_epochs=config.epochs,
     logger=[WandbLogger(project="kilter-gpt", config=config, log_model=True)],
-    # precision="bf16-mixed",
+    precision="bf16-mixed",
     callbacks=[
         L.pytorch.callbacks.EarlyStopping(monitor="val/loss", patience=20),
         L.pytorch.callbacks.ModelCheckpoint(monitor="val/loss", mode="min"),
