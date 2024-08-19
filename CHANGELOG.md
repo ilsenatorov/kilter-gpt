@@ -20,5 +20,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Fixed paths in `preprocess.py` to be OS agnostic.
 - Removed hard-coded devices count in `train.py`.
+- Fixed paths in other scripts to be OS agnostic.
 
 ### Deprecated

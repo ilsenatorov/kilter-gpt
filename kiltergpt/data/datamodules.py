@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import lightning as L
 import pandas as pd
 from torch.utils.data import DataLoader
@@ -9,6 +11,7 @@ from .tokenizer import Tokenizer
 class KilterDataModule(L.LightningDataModule):
     def __init__(
         self,
+        data_dir: str | Path = Path("data") / "processed",
         batch_size: int = 64,
         num_workers: int = 8,
         pin_memory: bool = True,
@@ -16,6 +19,9 @@ class KilterDataModule(L.LightningDataModule):
         label_smoothing: bool = True,
     ):
         super().__init__()
+        if not isinstance(data_dir, Path):
+            data_dir = Path(data_dir)
+        self.data_dir = data_dir
         self.batch_size = batch_size
         self.num_workers = num_workers
         self.pin_memory = pin_memory
@@ -25,20 +31,20 @@ class KilterDataModule(L.LightningDataModule):
     def setup(self, stage=None):
         self.tokenizer = Tokenizer()
         self.train = KilterGPTDataset(
-            "data/processed/train.csv",
+            self.data_dir / "train.csv",
             self.tokenizer,
             context_len=self.context_len,
             label_smoothing=self.label_smoothing,
         )
 
         self.val = KilterGPTDataset(
-            "data/processed/val.csv",
+            self.data_dir / "val.csv",
             self.tokenizer,
             context_len=self.context_len,
             label_smoothing=self.label_smoothing,
         )
         self.test = KilterGPTDataset(
-            "data/processed/test.csv",
+            self.data_dir / "test.csv",
             self.tokenizer,
             context_len=self.context_len,
             label_smoothing=self.label_smoothing,

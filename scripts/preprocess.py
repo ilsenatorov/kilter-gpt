@@ -16,8 +16,6 @@ args = parser.parse_args()
 
 
 data_path = Path("data")
-raw_data_path = data_path / "raw"
-raw_data_path.mkdir(exist_ok=True)
 processed_data_path = data_path / "processed"
 processed_data_path.mkdir(exist_ok=True)
 
