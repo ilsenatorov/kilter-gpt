@@ -16,9 +16,10 @@ args = parser.parse_args()
 
 
 data_path = Path("data")
-data_path.mkdir(exist_ok=True)
-(data_path / "raw").mkdir(exist_ok=True)
-(data_path / "processed").mkdir(exist_ok=True)
+raw_data_path = data_path / "raw"
+raw_data_path.mkdir(exist_ok=True)
+processed_data_path = data_path / "processed"
+processed_data_path.mkdir(exist_ok=True)
 
 # load everything from sql
 # data/db.sqlite3 you can get from the latest kilterboard apk
@@ -56,21 +57,21 @@ holds = holds[holds.index.to_series() < 1800]
 
 kp = KilterPolice(set(holds.index), n_total_holds=(args.min_holds, args.max_holds))
 df["valid"] = df["frames"].apply(kp.check)
-df[~df["valid"]].to_csv("data/processed/invalid_climbs.csv")
+df[~df["valid"]].to_csv(processed_data_path / "invalid_climbs.csv")
 df = df[df["valid"]]
 print(df.shape)
 
-holds.to_csv("data/processed/holds.csv")
-grades.to_csv("data/processed/grades.csv")
+holds.to_csv(processed_data_path / "holds.csv")
+grades.to_csv(processed_data_path / "grades.csv")
 
 # split into train, val and test
 df = df.sample(frac=1)  # shuffle
 train = df.iloc[: int(0.8 * len(df))]
 val = df.iloc[int(0.8 * len(df)) : int(0.9 * len(df))]
 test = df.iloc[int(0.9 * len(df)) :]
-train.to_csv("data/processed/train.csv")
-val.to_csv("data/processed/val.csv")
-test.to_csv("data/processed/test.csv")
+train.to_csv(processed_data_path / "train.csv")
+val.to_csv(processed_data_path / "val.csv")
+test.to_csv(processed_data_path / "test.csv")
 
 
 ### for plotter uses
