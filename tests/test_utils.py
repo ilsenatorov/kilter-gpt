@@ -63,5 +63,8 @@ def kilter_police_allowed_things(kilter_police, sane_climb):
 def kilter_police_disallowed_things(kilter_police, sane_climb, broken_addition):
     assert not kilter_police.check(sane_climb + broken_addition)
     assert not kilter_police.check(broken_addition + sane_climb)
+
+
+def kilter_police_too_few(kilter_police):
     assert not kilter_police.check("")  # empty climb
     assert not kilter_police.check("p1r12")  # only one hold
