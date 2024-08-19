@@ -2,11 +2,14 @@
 !.gitignore
 !.gitattributes
 !.pre-commit-config.yaml
-data/*
+!.github/
 !data/db.sqlite3
+!data/tokenizer.json
 __*__
+data/*
 wandb/
 kilter-gpt/
-test.ipynb
 artifacts/*
+*.ipynb
+*.egg-info
 *.sh

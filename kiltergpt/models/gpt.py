@@ -1,12 +1,10 @@
-import inspect
 import math
-import os
 
 import lightning as L
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torchvision.ops import sigmoid_focal_loss
+from fastapi import FastAPI
 
 from ..utils import Plotter, WarmupCosineSchedule
 
@@ -24,7 +22,6 @@ class LayerNorm(nn.Module):
 
 
 class CausalSelfAttention(nn.Module):
-
     def __init__(self, config):
         super().__init__()
         assert config.n_embed % config.n_head == 0
@@ -58,7 +55,6 @@ class CausalSelfAttention(nn.Module):
 
 
 class MLP(nn.Module):
-
     def __init__(self, config):
         super().__init__()
         self.c_fc = nn.Linear(config.n_embed, 4 * config.n_embed, bias=config.bias)
@@ -75,7 +71,6 @@ class MLP(nn.Module):
 
 
 class Block(nn.Module):
-
     def __init__(self, config):
         super().__init__()
         self.ln_1 = LayerNorm(config.n_embed, bias=config.bias)
@@ -145,8 +140,8 @@ class GPTModel(L.LightningModule):
         self.save_hyperparameters()
         self.config = config
         self.tokenizer = tokenizer
-        # self.model = GPT(self.config)
-        self.model = torch.compile(GPT(self.config))
+        self.model = GPT(self.config)
+        # self.model = torch.compile(self.model)
 
     def get_loss(self, logits, targets):
         B, C, V = logits.shape
@@ -176,11 +171,21 @@ class GPTModel(L.LightningModule):
     def validation_step(self, batch, batch_idx):
         return self.shared_step(batch, "val")
 
+    def test_step(self, batch, batch_idx):
+        self.bc_target = []
+        self.bc_generated = []
+        prompt, target = batch
+        generated = self.generate_batch(prompt, temperature=0.2, p=0.7)
+        bc_target = torch.bincount(target.flatten(), minlength=self.config.vocab_size)
+        bc_generated = torch.bincount(generated.flatten(), minlength=self.config.vocab_size)
+        self.bc_target.append(bc_target)
+        self.bc_generated.append(bc_generated)
+
     def plot_generated_climbs(self):
         """Used to visually monitor quality of generated data during training"""
         plotter = Plotter()
         for temp in [0.1, 0.2, 0.3, 0.5]:
-            texts = [self.generate_from_string("p1133r12", 40, grade, temp) for grade in ["5a", "6a", "7a", "8a"]]
+            texts = [self.generate_from_string("p1136r12", 40, grade, temp) for grade in ["5a", "6a", "7a", "8a"]]
             images = [plotter.plot_climb(x[0]) for x in texts]
             captions = [f"Angle: {x[1]}, Grade: {x[2]}, Temp: {temp}" for x in texts]
             self.logger.log_image(key=f"temp_{temp}", images=images, caption=captions)
@@ -213,45 +218,97 @@ class GPTModel(L.LightningModule):
         """Embeds prompts of size (B, C) into (B, C, Z) where Z is the embedding dimension"""
         return self.model.embed(x)
 
-    def _generate_token(self, prompts: torch.Tensor, temperature: float = 0.2) -> torch.Tensor:
-        """Generate a single token"""
-        logits = self.forward(prompts)
-        logits = logits[:, -1, :] / temperature
-        logit_probs = F.softmax(logits, dim=-1)
-        next_prompt = torch.multinomial(logit_probs, num_samples=1)
+    def _sample_from_logits(self, logits: torch.Tensor, p: float = 1.0) -> torch.Tensor:
+        if p < 1.0:
+            # sort by probability, get cumulative probs
+            sorted_logits, sorted_indices = torch.sort(logits, descending=True)
+            cumulative_probs = torch.cumsum(F.softmax(sorted_logits, dim=-1), dim=-1)
+
+            # Remove tokens with cumulative probability above the threshold
+            sorted_indices_to_remove = cumulative_probs > p
+            sorted_indices_to_remove[1:] = sorted_indices_to_remove[:-1].clone()
+            sorted_indices_to_remove[0] = 0
+
+            # Scatter sorted tensors to original indexing
+            indices_to_remove = sorted_indices_to_remove.scatter(0, sorted_indices, sorted_indices_to_remove)
+            logits[indices_to_remove] = float("-inf")
+
+        # Sample from the filtered distribution
+        probs = F.softmax(logits, dim=-1)
+        next_prompt = torch.multinomial(probs, num_samples=1)
         return next_prompt
 
-    def generate(self, prompt: torch.Tensor, temperature: float = 0.2) -> torch.Tensor:
+    def _generate_token(self, prompt: torch.Tensor, temperature: float = 0.2, p: float = 1.0) -> torch.Tensor:
+        """Generate a single token"""
+        # TODO additionally check the number of start and finish tokens
+        penultimate_token = prompt[-1]
+        logits = self.forward(prompt.unsqueeze(0)).squeeze(0)
+        logits = logits[-1, :] / temperature  # Get logits for the last position
+        # After color token only hold or EOS token can be generated
+        if penultimate_token in self.tokenizer.color_token_ids:
+            if len(prompt[prompt != self.tokenizer.eos_token_id]) > self.config.context_len - 2:
+                return torch.tensor([self.tokenizer.eos_token_id])
+            mask = torch.zeros_like(logits, dtype=torch.bool)
+            mask[self.tokenizer.hold_token_ids] = True
+            mask[self.tokenizer.eos_token_id] = True
+            logits[~mask] = float("-inf")
+        # After hold token only color token can be generated
+        elif penultimate_token in self.tokenizer.hold_token_ids:
+            mask = torch.zeros_like(logits, dtype=torch.bool)
+            mask[self.tokenizer.color_token_ids] = True
+            logits[~mask] = float("-inf")
+        return self._sample_from_logits(logits, p)
+
+    def generate(self, prompt: torch.Tensor, temperature: float = 0.2, p: float = 1.0) -> torch.Tensor:
         """Generate until EOS token is reached (not batched)"""
-        assert prompt.size() == (1, self.config.context_len), "Prompt shape must be (1, context_len)"
-        # Generate until EOS token is reached
-        for _ in range(999):  # this could be a while loop, but just to be safe I use a for loop
-            context = prompt[:, -self.config.context_len :]
-            next_prompt = self._generate_token(context, temperature)
-            prompt = torch.cat((prompt, next_prompt), dim=1)
-            if next_prompt == self.tokenizer.eos_token_id:
-                break
+        next_prompt = None
+        while next_prompt != self.tokenizer.eos_token_id:
+            context = prompt[-self.config.context_len :]
+            next_prompt = self._generate_token(context, temperature, p)
+            prompt = torch.cat((prompt, next_prompt), dim=0)
+            # If the prompt is too long, break the loop
         return prompt
 
-    def generate_batch(self, prompts: torch.Tensor, temperature: float = 0.2) -> torch.Tensor:
-        """Generate until EOS token is reached (batched)"""
-        for _ in range(999):
-            context = prompts[:, -self.config.context_len :]
-            next_prompt = self._generate_token(context, temperature)
-            prompt = torch.cat([prompt, next_prompt], dim=1)
-            # if eos token is present in every sample, break
-            if (prompt == self.tokenizer.eos_token_id).any(dim=1).all():
-                break
-        return prompt
-
+    @torch.jit.export
     def generate_from_string(
         self,
         frames: str,
         angle: int,
         grade: str,
         temperature: float = 0.2,
-    ) -> tuple[str, str, str]:
+        p: float = 0.7,
+    ) -> str:
         """Generate a climb from a string of frames, angle, and grade"""
         tokenized = self.tokenizer.encode(frames, angle, grade, pad=self.config.context_len, eos=False).to(self.device)
-        generated = self.generate(tokenized.unsqueeze(0), temperature)
-        return self.tokenizer.decode(generated.squeeze(0), clean=True)
+        generated = self.generate(tokenized, temperature, p)
+        return self.tokenizer.decode(generated, clean=True)[0]
+
+    @staticmethod
+    def load_from_wandb(wandb_model_name: str) -> "GPTModel":
+        """Use self.load_from_checkpoint to download model weights from wandb. Looks for models in ilsenatorov/kilter-gpt"""
+        import os
+
+        file_path = f"artifacts/{wandb_model_name}/model.ckpt"
+        if not os.path.exists(file_path):
+            import wandb
+
+            api = wandb.Api()
+            artifact = api.artifact(f"ilsenatorov/kilter-gpt/{wandb_model_name}")
+            artifact.download()
+        return GPTModel.load_from_checkpoint(file_path)
+
+    def get_fastapi_app(self) -> FastAPI:
+        """Return a FastAPI app that serves the model. Can be launched with gunicorn."""
+        from fastapi import FastAPI
+
+        app = FastAPI()
+        self.eval()
+        self.to("cpu")
+
+        @app.get("/generate")
+        def generate(frames: str, angle: int, grade: str, temperature: float = 0.2, p: float = 1.0):
+            with torch.no_grad():
+                result = self.generate_from_string(frames, angle, grade, temperature, p)
+            return {"climb": result}
+
+        return app

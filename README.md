@@ -4,25 +4,36 @@ Repo for training a model that generates Kilterboard climbs.
 
 ## Installation
 
-`pip3 install torch torchvision torchaudio wandb lightning plotly pandas numpy matplotlib ipykernel jupyter beartype`
+`pip3 install -r requirements.txt`
+`pip install -e .`
 
 ## Data
 
-One thing you need to do is download the latest version of the kilterboard apk file, unzip it, and copy the `db.sqlite3` file to the `data` directory.
-Then run the `preprocessing.ipynb` notebook to generate the data for training.
+The `db.sqlite3` file is downloaded with git LFS, so you need to have it installed to download the file.
+The file contains the data for the climbs, which is then processed into a csv file for training.
+If you want the updated version of the database, you can download it from the kitlerboard apk.
+Then run the `scripts/preprocess.py` notebook to generate the data for training.
 
 ## Training
 
 Simply running the `train.py` script will start training the model.
 You can adjust the hyperparameters in the script.
-By default the dataset is constructed from `data/raw/climbs.csv` file that is generated from the preprocessing notebook.
+By default the dataset is loaded from `data/processed/` folder which contains the three csv files for train, val and test.
+By defauly it's generated from the `preprocess.py` script.
 
 ## TODO
 
+* Write better tests
+* Add CHANGELOG.md
 * Add some automatic evaluation metrics (similarity to real data, consistency, etc.)
-* Convert dataset to hf dataset?
-* Add a script to convert the model to onnx?
-* Plot UMAP of token embeddings to check for logical clustering
+* Add code to convert model to torchscript/onnx
+* Add code to host the model as http API
+* Try to add data from routes to the dataset
+* Generation that ensures sensibility - no breaking limits.
+* Tests for basic functionality, especially HTTP API
+* Simple metrics for diversity/sensibility
+* Hyperparameter tuning
+* Add simple tests for the model
 * ~~Learning rate warmup with annealing is probably better than plateau reduction.~~
 * ~~Add masking of padding tokens to attention mechanism~~
 * ~~Improve tokenizer functionality, move all the tokenization/padding logic to the tokenizer class~~

@@ -1,0 +1,15 @@
+torch
+lightning
+torchmetrics
+rich
+wandb
+beartype
+pytest
+pytest-cov
+fastapi
+opencv-python
+pandas
+fastapi
+uvicorn
+httpx
+matplotlib
