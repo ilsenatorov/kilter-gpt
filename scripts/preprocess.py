@@ -1,12 +1,12 @@
 import sqlite3
-from argparse import ArgumentParser
+from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
 from pathlib import Path
 
 import pandas as pd
 
 from kiltergpt.utils import KilterPolice
 
-parser = ArgumentParser()
+parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
 parser.add_argument("--data_dir", type=str, default="data", help="Directory to save data, has to contain db.sqlite3")
 parser.add_argument("--min_ascents", type=int, default=1, help="Minimum number of ascents")
 parser.add_argument("--min_quality", type=int, default=2, help="Minimum quality")
@@ -51,18 +51,20 @@ df = df[df["ascensionist_count"] >= args.min_ascents].reset_index()
 print(df.shape)
 
 holds = holds[holds["layout_id"] == 1]  # only original boards
-holds = holds[holds.index.to_series() < 3000]
+holds = holds[holds.index.to_series() < 1800]
 
 
 kp = KilterPolice(set(holds.index), n_total_holds=(args.min_holds, args.max_holds))
 df["valid"] = df["frames"].apply(kp.check)
+df[~df["valid"]].to_csv("data/processed/invalid_climbs.csv")
 df = df[df["valid"]]
+print(df.shape)
 
 holds.to_csv("data/processed/holds.csv")
 grades.to_csv("data/processed/grades.csv")
 
 # split into train, val and test
-df = df.sample(frac=1)
+df = df.sample(frac=1)  # shuffle
 train = df.iloc[: int(0.8 * len(df))]
 val = df.iloc[int(0.8 * len(df)) : int(0.9 * len(df))]
 test = df.iloc[int(0.9 * len(df)) :]

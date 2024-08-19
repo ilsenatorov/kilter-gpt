@@ -18,7 +18,7 @@ Then run the `scripts/preprocess.py` notebook to generate the data for training.
 
 Simply running the `train.py` script will start training the model.
 You can adjust the hyperparameters in the script.
-By default the dataset is constructed from `data/raw/` folder which contains the three csv files for train, val and test.
+By default the dataset is loaded from `data/processed/` folder which contains the three csv files for train, val and test.
 By defauly it's generated from the `preprocess.py` script.
 
 ## TODO

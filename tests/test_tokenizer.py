@@ -10,7 +10,7 @@ def test_init():
     assert len(tokenizer.hold_token_ids) == 527  # original kilterboard has 527 holds
     assert len(tokenizer.angle_token_ids) == (95 // 5)  # 19 angle options
     assert len(tokenizer.color_token_ids) == 4  # 4 hold roles
-    assert len(tokenizer.grade_token_ids) == 24  # 24 grades (from 4a to 8c+, first plus grade is 6a+)
+    assert len(tokenizer.grade_token_ids) == 25  # 24 grades (from 4a to 9a, first plus grade is 6a+)
     assert len(tokenizer.special_token_ids) == 5  # "[BOS]", "[EOS]", "[PAD]", "[UNK]", "[MASK]"
 
 

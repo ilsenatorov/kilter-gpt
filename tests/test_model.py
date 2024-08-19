@@ -1,6 +1,7 @@
 from argparse import Namespace
 
 import pytest
+from fastapi.testclient import TestClient
 
 from kiltergpt.data.tokenizer import Tokenizer
 from kiltergpt.models.gpt import GPTModel
@@ -46,5 +47,18 @@ def test_generate(sample_config):
     model = GPTModel(sample_config, tokenizer)
     sample_prompt = "p1234r12"
     generated = model.generate_from_string(sample_prompt, 40, "7a")
-    print(generated)
-    # TODO write better tests
+    # FIXME add sensible asserts
+
+
+def test_app(sample_config):
+    tokenizer = Tokenizer()
+    model = GPTModel(sample_config, tokenizer)
+    app = model.get_fastapi_app()
+    sample_prompt = "p1234r12p1333r14"
+    client = TestClient(app)
+    response = client.get(
+        "/generate",  # Update the URL path to match the endpoint in your FastAPI application
+        params={"frames": sample_prompt, "angle": 40, "grade": "7a", "temperature": 0.1, "p": 0.7},
+    )
+    assert response.status_code == 200
+    assert sample_prompt in response.json()["climb"]

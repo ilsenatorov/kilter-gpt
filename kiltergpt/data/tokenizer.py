@@ -94,6 +94,7 @@ class Tokenizer:
                 "8b+",
                 "8c",
                 "8c+",
+                "9a",
             ]
         ]
 
@@ -183,7 +184,7 @@ class Tokenizer:
         tokens.extend(self.split_tokens(frames))
         if eos:
             tokens.append(self.eos_token)
-        t = torch.tensor([self.encode_map[x] for x in tokens], dtype=torch.long)
+        t = torch.tensor([self.encode_map.get(x, self.unk_token_id) for x in tokens], dtype=torch.long)
         if pad:
             t = self.pad(t, pad)
         return t

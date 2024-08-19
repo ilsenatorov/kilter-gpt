@@ -4,6 +4,7 @@ import lightning as L
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from fastapi import FastAPI
 
 from ..utils import Plotter, WarmupCosineSchedule
 
@@ -276,11 +277,11 @@ class GPTModel(L.LightningModule):
         grade: str,
         temperature: float = 0.2,
         p: float = 0.7,
-    ) -> tuple[str, int, str]:
+    ) -> str:
         """Generate a climb from a string of frames, angle, and grade"""
         tokenized = self.tokenizer.encode(frames, angle, grade, pad=self.config.context_len, eos=False).to(self.device)
         generated = self.generate(tokenized, temperature, p)
-        return self.tokenizer.decode(generated, clean=True)
+        return self.tokenizer.decode(generated, clean=True)[0]
 
     @staticmethod
     def load_from_wandb(wandb_model_name: str) -> "GPTModel":
@@ -295,3 +296,19 @@ class GPTModel(L.LightningModule):
             artifact = api.artifact(f"ilsenatorov/kilter-gpt/{wandb_model_name}")
             artifact.download()
         return GPTModel.load_from_checkpoint(file_path)
+
+    def get_fastapi_app(self) -> FastAPI:
+        """Return a FastAPI app that serves the model. Can be launched with gunicorn."""
+        from fastapi import FastAPI
+
+        app = FastAPI()
+        self.eval()
+        self.to("cpu")
+
+        @app.get("/generate")
+        def generate(frames: str, angle: int, grade: str, temperature: float = 0.2, p: float = 1.0):
+            with torch.no_grad():
+                result = self.generate_from_string(frames, angle, grade, temperature, p)
+            return {"climb": result}
+
+        return app

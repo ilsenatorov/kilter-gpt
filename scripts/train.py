@@ -45,14 +45,13 @@ trainer = Trainer(
     devices=-1,
     max_epochs=config.epochs,
     logger=[WandbLogger(project="kilter-gpt", config=config, log_model=True)],
-    precision="bf16-mixed",
+    # precision="bf16-mixed",
     callbacks=[
         L.pytorch.callbacks.EarlyStopping(monitor="val/loss", patience=20),
         L.pytorch.callbacks.ModelCheckpoint(monitor="val/loss", mode="min"),
-        # L.pytorch.callbacks.StochasticWeightAveraging(swa_lrs=1e-2),
         L.pytorch.callbacks.LearningRateMonitor(logging_interval="step"),
     ],
 )
 
 trainer.fit(model, datamodule=dm)
-# trainer.test(model, test_dataloaders=test_dl)
+trainer.test(model, datamodule=dm)

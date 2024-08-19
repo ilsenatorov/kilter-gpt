@@ -7,3 +7,4 @@ beartype
 pytest
 pytest-cov
 fastapi
+opencv-python
