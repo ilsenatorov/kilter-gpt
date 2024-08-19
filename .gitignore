@@ -2,7 +2,7 @@
 !.gitignore
 !.gitattributes
 !.pre-commit-config.yaml
-!.github/workflows/*
+!.github/
 !data/db.sqlite3
 !data/tokenizer.json
 __*__
