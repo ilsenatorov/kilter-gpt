@@ -13,7 +13,7 @@ class KilterDataModule(L.LightningDataModule):
         self,
         data_dir: str | Path = Path("data") / "processed",
         batch_size: int = 64,
-        num_workers: int = 8,
+        num_workers: int = 0,
         pin_memory: bool = True,
         context_len: int = 64,
         label_smoothing: bool = True,
@@ -53,7 +53,9 @@ class KilterDataModule(L.LightningDataModule):
         self.vocab_size = self.tokenizer.vocab_size
 
     def _get_dataloader(self, dataset, shuffle: bool = False) -> DataLoader:
-        return DataLoader(dataset, batch_size=self.batch_size, shuffle=shuffle, pin_memory=True, num_workers=16)
+        return DataLoader(
+            dataset, batch_size=self.batch_size, shuffle=shuffle, pin_memory=True, num_workers=self.num_workers
+        )
 
     def train_dataloader(self) -> DataLoader:
         return self._get_dataloader(self.train, shuffle=True)
