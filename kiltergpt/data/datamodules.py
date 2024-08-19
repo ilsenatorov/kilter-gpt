@@ -23,8 +23,7 @@ class KilterDataModule(L.LightningDataModule):
         self.label_smoothing = label_smoothing
 
     def setup(self, stage=None):
-        df = pd.read_csv("data/processed/all_climbs.csv")
-        self.tokenizer = Tokenizer.from_df(df)
+        self.tokenizer = Tokenizer()
         self.train = KilterGPTDataset(
             "data/processed/train.csv",
             self.tokenizer,

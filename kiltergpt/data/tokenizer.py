@@ -40,52 +40,82 @@ def pad_to(
 
 
 class Tokenizer:
-    eos_token = "[EOS]"
-    bos_token = "[BOS]"
-    pad_token = "[PAD]"
-    unk_token = "[UNK]"
-    mask_token = "[MASK]"
-
-    def __init__(self, encode_map: dict[str, int]):
-        self.encode_map = encode_map
+    def __init__(self):
+        self.encode_map: dict[str, int] = dict()
+        for i, token in enumerate(
+            self.special_tokens()
+            + self.color_tokens()
+            + self.hold_tokens()
+            + self.angle_tokens()
+            + self.grade_tokens()
+        ):
+            self.encode_map[token] = i
         self.decode_map = {v: k for k, v in self.encode_map.items()}
-        self._set_special_token_ids()
+        self._set_special_tokens()
 
-    @property
-    def angle_tokens(self):
-        return [x for x in self.encode_map if x.startswith("a")]
+    @staticmethod
+    def angle_tokens():
+        return [f"a{i}" for i in range(0, 95, 5)]
 
-    @property
-    def hold_tokens(self):
-        return [x for x in self.encode_map if x.startswith("p")]
-
-    @property
-    def hold_token_ids(self):
-        return torch.tensor([self.encode_map[x] for x in self.hold_tokens])
+    @staticmethod
+    def hold_tokens():
+        return [f"p{i}" for i in range(1073, 1600)]
 
     @staticmethod
     def color_tokens():
         return ["r12", "r13", "r14", "r15"]
 
     @staticmethod
+    def grade_tokens():
+        return [
+            f"f{i}"
+            for i in [
+                "4a",
+                "4b",
+                "4c",
+                "5a",
+                "5b",
+                "5c",
+                "6a",
+                "6a+",
+                "6b",
+                "6b+",
+                "6c",
+                "6c+",
+                "7a",
+                "7a+",
+                "7b",
+                "7b+",
+                "7c",
+                "7c+",
+                "8a",
+                "8a+",
+                "8b",
+                "8b+",
+                "8c",
+                "8c+",
+            ]
+        ]
+
+    @staticmethod
     def special_tokens():
         return ["[PAD]", "[BOS]", "[EOS]", "[UNK]", "[MASK]"]
+
+    @property
+    def angle_token_ids(self):
+        return torch.tensor([self.encode_map[x] for x in self.angle_tokens()])
+
+    @property
+    def hold_token_ids(self):
+        return torch.tensor([self.encode_map[x] for x in self.hold_tokens()])
 
     @property
     def color_token_ids(self):
         return torch.tensor([self.encode_map[x] for x in self.color_tokens()])
 
     @property
-    def angle_token_ids(self):
-        return torch.tensor([self.encode_map[x] for x in self.angle_tokens])
-
-    @property
-    def grade_tokens(self):
-        return [x for x in self.encode_map if x.startswith("f")]
-
-    @property
     def grade_token_ids(self):
-        return torch.tensor([self.encode_map[x] for x in self.grade_tokens])
+        return torch.tensor([self.encode_map[x] for x in self.grade_tokens()])
 
     @property
     def special_token_ids(self):
@@ -99,36 +129,17 @@ class Tokenizer:
             ]
         )
 
-    def _set_special_token_ids(self):
-        self.pad_token_id = self.encode_map[self.pad_token]
-        self.bos_token_id = self.encode_map[self.bos_token]
-        self.eos_token_id = self.encode_map[self.eos_token]
-        self.unk_token_id = self.encode_map[self.unk_token]
-        self.mask_token_id = self.encode_map[self.mask_token]
-
-    @staticmethod
-    def from_df(df: pd.DataFrame, angle: bool = True, grade: bool = True) -> "Tokenizer":
-        hold_tokens, angle_tokens, grade_tokens = set(), set(), set()
-        for frame in df["frames"].unique():
-            for token in Tokenizer.split_tokens(frame):
-                if token.startswith("p"):  # Add only hold tokens
-                    hold_tokens.add(token)
-        # Add angle and difficulty tokens
-        if angle:
-            for i in df["angle"].unique():
-                angle_tokens.add(f"a{i}")
-        if grade:
-            for i in df["font_grade"].unique():
-                grade_tokens.add(f"f{i}")
-        tokens = (
-            Tokenizer.special_tokens()
-            + Tokenizer.color_tokens()
-            + sorted(list(hold_tokens))
-            + sorted(list(angle_tokens))
-            + sorted(list(grade_tokens))
-        )
-        encode_map = {x: i for i, x in enumerate(tokens)}
-        return Tokenizer(encode_map)
+    def _set_special_tokens(self):
+        self.pad_token = self.special_tokens()[0]
+        self.bos_token = self.special_tokens()[1]
+        self.eos_token = self.special_tokens()[2]
+        self.unk_token = self.special_tokens()[3]
+        self.mask_token = self.special_tokens()[4]
+        self.pad_token_id = self.encode_map[self.special_tokens()[0]]
+        self.bos_token_id = self.encode_map[self.special_tokens()[1]]
+        self.eos_token_id = self.encode_map[self.special_tokens()[2]]
+        self.unk_token_id = self.encode_map[self.special_tokens()[3]]
+        self.mask_token_id = self.encode_map[self.special_tokens()[4]]
 
     @staticmethod
     def split_tokens(frames: str) -> list[str]:
@@ -212,25 +223,8 @@ class Tokenizer:
                 frames += i
         return frames, angle, grade
 
-    def save(self, path: str):
-        torch.save(self, path)
-
-    @staticmethod
-    def load(path: str) -> "Tokenizer":
-        return torch.load(path)
-
     def pad(self, x: torch.Tensor, size: int, where: Literal["left", "right"] = "left"):
         return pad_to(x, size, self.encode_map[self.pad_token], where=where)
 
     def __repr__(self):
         return f"Tokenizer, tokens:{len(self.encode_map)}, hold:{len(self.hold_tokens)}, angle:{len(self.angle_tokens)}, grade:{len(self.grade_tokens)}"
-
-    def to_json(self, path: str):
-        with open(path, "w") as f:
-            json.dump(self.encode_map, f)
-
-    @staticmethod
-    def from_json(path: str) -> "Tokenizer":
-        with open(path, "r") as f:
-            encode_map = json.load(f)
-        return Tokenizer(encode_map)
