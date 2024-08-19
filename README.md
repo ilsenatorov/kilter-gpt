@@ -5,35 +5,37 @@ Repo for training a model that generates Kilterboard climbs.
 ## Installation
 
 `pip3 install -r requirements.txt`
+
+[Optional] If you want to install the package locally, you can run
+
 `pip install -e .`
 
 ## Data
 
 The `db.sqlite3` file is downloaded with git LFS, so you need to have it installed to download the file.
+Run `git lfs install` to install it, then `git lfs pull` to download the file.
 The file contains the data for the climbs, which is then processed into a csv file for training.
 If you want the updated version of the database, you can download it from the kitlerboard apk.
-Then run the `scripts/preprocess.py` notebook to generate the data for training.
+Then run the `python scripts/preprocess.py` notebook to generate the data for training.
 
 ## Training
 
-Simply running the `train.py` script will start training the model.
+Simply running the `python scripts/train.py` script will start training the model.
 You can adjust the hyperparameters in the script.
-By default the dataset is loaded from `data/processed/` folder which contains the three csv files for train, val and test.
-By defauly it's generated from the `preprocess.py` script.
+By default the dataset is loaded from `data/processed` folder which contains the three csv files for train, val and test.
+By defauly it's generated from the `python scripts/preprocess.py` script.
 
 ## TODO
 
 * Write better tests
-* Add CHANGELOG.md
+* Improve the CI/CD side of things
 * Add some automatic evaluation metrics (similarity to real data, consistency, etc.)
 * Add code to convert model to torchscript/onnx
-* Add code to host the model as http API
-* Try to add data from routes to the dataset
-* Generation that ensures sensibility - no breaking limits.
-* Tests for basic functionality, especially HTTP API
-* Simple metrics for diversity/sensibility
 * Hyperparameter tuning
-* Add simple tests for the model
+* ~~Add simple tests for the model~~
+* ~~Tests for basic functionality, especially HTTP API~~
+* ~~Generation that ensures sensibility - no breaking limits.~~
+* ~~Add code to host the model as http API~~
 * ~~Learning rate warmup with annealing is probably better than plateau reduction.~~
 * ~~Add masking of padding tokens to attention mechanism~~
 * ~~Improve tokenizer functionality, move all the tokenization/padding logic to the tokenizer class~~
@@ -44,17 +46,3 @@ By defauly it's generated from the `preprocess.py` script.
 * ~~Log the model to wandb~~
 * ~~Add a script/notebook to generate climbs from the model~~
 * ~~Better config handling~~
-
-## Permutation invariant issues
-
-The model is currently not permutation invariant, meaning that the order of the input tokens matters.
-This is not ideal for the task of generating climbing routes, where the order of the holds is not important.
-
-## Design choices and reasonings
-
-* GPT model is a simple baseline for text generation tasks.
-* The model is trained on the text representation of the climbing routes, which is a sequence of holds. Here the issues arises with the permutation invariance of the model, as the order of the holds is not important.
-* Shuffling - the order of holds is shuffled on every pass, which should allow prompts that consist only of start and finish holds to generate different routes.
-* Label smoothing - if set to `True`, and the token to be predicted is a hold token, all of the remaining holds in a route will be accepted as valid answers. This is to prevent the model from overfitting to the exact order of holds.
-* Tokenisation - there are currently 5 types of tokens - special tokens (bos, eos, pad etc), hold tokens (hold id), hold role (color), wall angle and grade. Each climb is then represented as alternating pair of hold id and color tokens, with angle and difficulty prepended. This keeps the vocabulary small and manageable.
-* Every time I access a climb in the dataset, I cut out a random sequence of size `context_len` out of it. If the sequence is smaller I pad it on the left side. This is to simulate the model generating the climb one hold at a time.
