@@ -1,23 +1,20 @@
+from argparse import ArgumentParser
+
 import torch
 import wandb
 from fastapi import FastAPI
 
 from kiltergpt.models.gpt import GPTModel
 
+parser = ArgumentParser()
+parser.add_argument("model_name", type=str, help="Name of the model from wandb, something like 'model-hhh777xxx:best'")
+
+args = parser.parse_args()
+
 app = FastAPI()
 
-MODEL_NAME = "model-h7iskggx:v0"
-
-run = wandb.init(name="model_download")
-artifact = run.use_artifact(f"ilsenatorov/kilter-gpt/{MODEL_NAME}", type="model")
-artifact_dir = artifact.download()
-wandb.finish()
-
-model = GPTModel.load_from_checkpoint(f"artifacts/{MODEL_NAME}/model.ckpt").to("cpu")
+model = GPTModel.load_from_wandb(args.model_name).to("cpu")
 model.eval()
-for i in range(5):
-    print(f"Doing test run {i}/5")
-    model.generate_from_string("p1100r12", 40, "7a")
 
 
 @app.get("/generate_climb")

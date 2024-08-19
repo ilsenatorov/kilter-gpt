@@ -284,7 +284,7 @@ class GPTModel(L.LightningModule):
 
     @staticmethod
     def load_from_wandb(wandb_model_name: str) -> "GPTModel":
-        """Use self.load_from_checkpoint to download model weights from wandb"""
+        """Use self.load_from_checkpoint to download model weights from wandb. Looks for models in ilsenatorov/kilter-gpt"""
         import os
 
         file_path = f"artifacts/{wandb_model_name}/model.ckpt"
