@@ -60,3 +60,6 @@ def test_datamodule(dataset_dir):
     datamodule.setup()
     batch = next(iter(datamodule.train_dataloader()))
     assert len(batch) == 2
+    assert datamodule.train.eval is False
+    assert datamodule.val.eval is False
+    assert datamodule.test.eval is True
