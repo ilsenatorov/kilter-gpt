@@ -141,7 +141,6 @@ class GPTModel(L.LightningModule):
         self.config = config
         self.tokenizer = tokenizer
         self.model = GPT(self.config)
-        # self.model = torch.compile(self.model)
 
     def get_loss(self, logits, targets):
         B, C, V = logits.shape

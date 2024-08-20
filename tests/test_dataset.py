@@ -38,10 +38,11 @@ def test_data_generation_consistency(dataset):
 
 
 def test_evaluation_mode(dataset):
-    dataset.eval = True
-    x, y = dataset[0]
-    assert x.size(0) == dataset.context_len
-    assert y.size(0) == dataset.context_len
+    dataset.raw = True
+    frames, angle, grade = dataset[0]
+    assert isinstance(frames, str)
+    assert isinstance(angle, int)
+    assert isinstance(grade, str)
 
 
 def test_label_smoothing(dataset):
@@ -60,3 +61,6 @@ def test_datamodule(dataset_dir):
     datamodule.setup()
     batch = next(iter(datamodule.train_dataloader()))
     assert len(batch) == 2
+    assert datamodule.train.raw is False
+    assert datamodule.val.raw is False
+    assert datamodule.test.raw is True

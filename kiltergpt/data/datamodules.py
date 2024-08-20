@@ -49,7 +49,7 @@ class KilterDataModule(L.LightningDataModule):
             context_len=self.context_len,
             label_smoothing=self.label_smoothing,
         )
-        self.test.eval = True
+        self.test.raw = True
         self.vocab_size = self.tokenizer.vocab_size
 
     def _get_dataloader(self, dataset, shuffle: bool = False) -> DataLoader:
