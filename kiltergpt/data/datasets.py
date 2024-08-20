@@ -16,24 +16,37 @@ class KilterGPTDataset(Dataset):
         context_len: int = 64,  # 1 hold == 2 tokens
         shuffle_tokens: bool = True,
         label_smoothing: bool = True,
+        prompt_size: float = 0.5,
     ):
         self.df = pd.read_csv(filename)
         self.tokenizer = tokenizer
         self.context_len = context_len
         self.shuffle_tokens = shuffle_tokens
         self.label_smoothing = label_smoothing
-        self.raw = False
+        self.prompt_size = prompt_size
+        self.eval = False
 
     def __len__(self) -> int:
         return len(self.df)
 
-    def _get_item_raw(self, idx: int) -> tuple[str, int, str]:
+    def _get_item_eval(self, idx: int) -> tuple[torch.LongTensor, torch.LongTensor]:
         row = self.df.iloc[idx]
-        return row["frames"], row["angle"].item(), row["font_grade"]
+        frames = row["frames"]
+        tokenized = self.tokenizer.encode(
+            frames,
+            row["angle"].item(),
+            row["font_grade"],
+            shuffle=self.shuffle_tokens,
+        )
+        n_tokens = tokenized.size(0)
+        prompt_size = int(n_tokens * self.prompt_size)
+        x = self.tokenizer.pad(tokenized[:prompt_size], self.context_len)
+        y = self.tokenizer.pad(tokenized, self.context_len)
+        return x, y
 
-    def __getitem__(self, idx: int):
-        if self.raw:
-            return self._get_item_raw(idx)
+    def __getitem__(self, idx: int) -> tuple[torch.LongTensor, torch.Tensor]:
+        if self.eval:
+            return self._get_item_eval(idx)
         else:
             return self._get_item_train(idx)
 
