@@ -17,11 +17,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Python version set to >=3.10
-- `Dataset.eval` changed to `Dataset.raw`
-- When set to `Dataset.raw` now returns raw data `tuple[str, int, str]` instead of processed data.
-- Changed corresponding tests to reflect the above changes.
-
 ### Removed
 
 ### Fixed

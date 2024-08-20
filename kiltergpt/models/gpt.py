@@ -171,7 +171,6 @@ class GPTModel(L.LightningModule):
         return self.shared_step(batch, "val")
 
     def test_step(self, batch, batch_idx):
-        # FIXME add actual metrics
         self.bc_target = []
         self.bc_generated = []
         prompt, target = batch
@@ -181,20 +180,18 @@ class GPTModel(L.LightningModule):
         self.bc_target.append(bc_target)
         self.bc_generated.append(bc_generated)
 
-    # TODO FIXME fix the plotting logic
+    def plot_generated_climbs(self):
+        """Used to visually monitor quality of generated data during training"""
+        plotter = Plotter()
+        for temp in [0.1, 0.2, 0.3, 0.5]:
+            texts = [self.generate_from_string("p1136r12", 40, grade, temp) for grade in ["5a", "6a", "7a", "8a"]]
+            images = [plotter.plot_climb(x[0]) for x in texts]
+            captions = [f"Angle: {x[1]}, Grade: {x[2]}, Temp: {temp}" for x in texts]
+            self.logger.log_image(key=f"temp_{temp}", images=images, caption=captions)
 
-    # def plot_generated_climbs(self):
-    #     """Used to visually monitor quality of generated data during training"""
-    #     plotter = Plotter()
-    #     for temp in [0.1, 0.2, 0.3, 0.5]:
-    #         texts = [self.generate_from_string("p1136r12", 40, grade, temp) for grade in ["5a", "6a", "7a", "8a"]]
-    #         images = [plotter.plot_climb(x) for x in texts]
-    #         captions = [f"Angle: {x[1]}, Grade: {x[2]}, Temp: {temp}" for x in texts]
-    #         self.logger.log_image(key=f"temp_{temp}", images=images, caption=captions)
-
-    # def on_train_epoch_end(self):
-    #     if self.current_epoch % 25 == 0 and self.current_epoch > 0:
-    #         self.plot_generated_climbs()
+    def on_train_epoch_end(self):
+        if self.current_epoch % 25 == 0 and self.current_epoch > 0:
+            self.plot_generated_climbs()
 
     def configure_optimizers(self):
         param_dict = {pn: p for pn, p in self.named_parameters()}
