@@ -42,7 +42,6 @@ config.total_steps = len(dm.train_dataloader()) * config.epochs
 model = GPTModel(config, dm.tokenizer)
 
 trainer = Trainer(
-    # devices=-1,
     max_epochs=config.epochs,
     logger=[WandbLogger(project="kilter-gpt", config=config, log_model=True)],
     precision="bf16-mixed",

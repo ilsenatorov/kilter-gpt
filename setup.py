@@ -11,5 +11,5 @@ setup(
     author_email="il.senatorov@protonmail.com",
     packages=find_packages(),
     install_requires=requirements,
-    python_requires=">=3.11",
+    python_requires=">=3.10",
 )
