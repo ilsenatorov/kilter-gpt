@@ -57,3 +57,13 @@ def test_tokenizer_invalid_inputs():
         raise AssertionError("Expected a ValueError for an invalid sequence")
     except AssertionError:
         pass
+
+
+def test_tokenizer_onehot():
+    tokenizer = Tokenizer()
+    frames = "p1100r12p1200r13p1300r14"
+    encoded = tokenizer.encode(frames, 10, "7a")
+    onehot_from_str = tokenizer.onehot(frames)
+    onehot_from_encoded = tokenizer.onehot(encoded)
+    assert (onehot_from_str == onehot_from_encoded).all()
+    assert onehot_from_str.sum() == 3

@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added lr scheduler tests.
 - Added test_step tests.
 - Added token distribution spearman correlation coefficient to the metrics.
+- `Tokenizer.onehot` now also works on encoded tensors.
 
 ### Changed
 
