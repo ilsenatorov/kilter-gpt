@@ -171,28 +171,16 @@ class GPTModel(L.LightningModule):
     def validation_step(self, batch, batch_idx):
         return self.shared_step(batch, "val")
 
+    def on_test_epoch_start(self) -> None:
+        self.test_generated = []
+        self.test_real = []
+        return super().on_test_epoch_start()
+
     def test_step(self, batch, batch_idx):
-        self.bc_target = []
-        self.bc_generated = []
-        prompt, target = batch
-        generated = self.generate_batch(prompt, temperature=0.2, p=0.7)
-        bc_target = torch.bincount(target.flatten(), minlength=self.config.vocab_size)
-        bc_generated = torch.bincount(generated.flatten(), minlength=self.config.vocab_size)
-        self.bc_target.append(bc_target)
-        self.bc_generated.append(bc_generated)
-
-    def plot_generated_climbs(self):
-        """Used to visually monitor quality of generated data during training"""
-        plotter = Plotter()
-        for temp in [0.1, 0.2, 0.3, 0.5]:
-            texts = [self.generate_from_string("p1136r12", 40, grade, temp) for grade in ["5a", "6a", "7a", "8a"]]
-            images = [plotter.plot_climb(x[0]) for x in texts]
-            captions = [f"Angle: {x[1]}, Grade: {x[2]}, Temp: {temp}" for x in texts]
-            self.logger.log_image(key=f"temp_{temp}", images=images, caption=captions)
-
-    def on_train_epoch_end(self):
-        if self.current_epoch % 25 == 0 and self.current_epoch > 0:
-            self.plot_generated_climbs()
+        prompts, targets = batch
+        for prompt, target in zip(prompts, targets, strict=True):
+            self.test_generated.append(self.generate(prompt, 0.2, 0.7).detach().cpu())
+            self.test_real.append(target.detach().cpu())
 
     def configure_optimizers(self):
         param_dict = {pn: p for pn, p in self.named_parameters()}
@@ -235,25 +223,25 @@ class GPTModel(L.LightningModule):
 
         # Sample from the filtered distribution
         probs = F.softmax(logits, dim=-1)
-        next_prompt = torch.multinomial(probs, num_samples=1)
+        next_prompt = torch.multinomial(probs, num_samples=1).to(self.device)
         return next_prompt
 
     def _generate_token(self, prompt: torch.Tensor, temperature: float = 0.2, p: float = 1.0) -> torch.Tensor:
-        """Generate a single token"""
+        """Generate a single token
+        prompt: torch.LongTensor: A left-padded tensor of token ids
+        """
         # TODO additionally check the number of start and finish tokens
         penultimate_token = prompt[-1]
         logits = self.forward(prompt.unsqueeze(0)).squeeze(0)
         logits = logits[-1, :] / temperature  # Get logits for the last position
         # After color token only hold or EOS token can be generated
-        if penultimate_token in self.tokenizer.color_token_ids:
-            if len(prompt[prompt != self.tokenizer.eos_token_id]) > self.config.context_len - 2:
-                return torch.tensor([self.tokenizer.eos_token_id])
+        if penultimate_token in self.tokenizer.color_token_ids.to(self.device):
             mask = torch.zeros_like(logits, dtype=torch.bool)
             mask[self.tokenizer.hold_token_ids] = True
             mask[self.tokenizer.eos_token_id] = True
             logits[~mask] = float("-inf")
         # After hold token only color token can be generated
-        elif penultimate_token in self.tokenizer.hold_token_ids:
+        elif penultimate_token in self.tokenizer.hold_token_ids.to(self.device):
             mask = torch.zeros_like(logits, dtype=torch.bool)
             mask[self.tokenizer.color_token_ids] = True
             logits[~mask] = float("-inf")
@@ -266,7 +254,12 @@ class GPTModel(L.LightningModule):
             context = prompt[-self.config.context_len :]
             next_prompt = self._generate_token(context, temperature, p)
             prompt = torch.cat((prompt, next_prompt), dim=0)
-            # If the prompt is too long, break the loop
+            # Stop when you get to 2x length of context length
+            if len(prompt) > self.config.context_len * 2 - 1:
+                prompt = torch.cat(
+                    (prompt, torch.tensor(self.tokenizer.eos_token_id, device=self.device).unsqueeze(0)), dim=0
+                )
+                break
         return prompt
 
     @torch.jit.export
