@@ -28,6 +28,7 @@ parser.add_argument("--n_embed", type=int, default=512, help="Embedding dimensio
 parser.add_argument("--context_len", type=int, default=64, help="Context length")
 parser.add_argument("--dropout", type=float, default=0.2, help="Dropout")
 parser.add_argument("--bias", type=str_to_bool, default=False, help="Use bias in attention layers")
+parser.add_argument("--precision", type=str, default="bf16-mixed", help="Training precision")
 config = parser.parse_args()
 
 dm = KilterDataModule(
@@ -42,10 +43,9 @@ config.total_steps = len(dm.train_dataloader()) * config.epochs
 model = GPTModel(config, dm.tokenizer)
 
 trainer = Trainer(
-    # devices=-1,
     max_epochs=config.epochs,
     logger=[WandbLogger(project="kilter-gpt", config=config, log_model=True)],
-    # precision="bf16-mixed",
+    precision=config.precision,
     callbacks=[
         L.pytorch.callbacks.EarlyStopping(monitor="val/loss", patience=20),
         L.pytorch.callbacks.ModelCheckpoint(monitor="val/loss", mode="min"),
@@ -53,7 +53,5 @@ trainer = Trainer(
     ],
 )
 
-# trainer.fit(model, datamodule=dm)
+trainer.fit(model, datamodule=dm)
 trainer.test(model, datamodule=dm)
-print(model.test_real)
-print(model.test_generated)

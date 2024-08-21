@@ -67,7 +67,9 @@ def str_to_bool(value: str) -> bool:
 
 
 class WarmupCosineSchedule(torch.optim.lr_scheduler.LambdaLR):
-    """Linear warmup and then cosine decay. Coeff is the original lr multiplier."""
+    """Linear warmup and then cosine decay. Coeff is the original lr multiplier.
+    Goes from lr * start_coeff up to lr in warmup_steps, then decays to lr * end_coeff over total_steps.
+    After step total_steps, stays at lr * end_coeff."""
 
     def __init__(
         self,
