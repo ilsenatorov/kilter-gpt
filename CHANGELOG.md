@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added changelog-enforcer github action for pull request checks.
 - Added DataModule tests.
 - Added Plotter tests.
+- Added lr scheduler tests
 
 ### Changed
 

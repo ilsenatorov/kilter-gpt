@@ -1,8 +1,9 @@
 import math
 
 import pytest
+import torch
 
-from kiltergpt.utils import KilterPolice, Plotter, str_to_bool
+from kiltergpt.utils import KilterPolice, Plotter, WarmupCosineSchedule, str_to_bool
 
 
 def test_str_to_bool():
@@ -63,3 +64,24 @@ def test_plotter():
     assert normal_plot is not None
     matplotlib_plot = plotter.plot_climb(climb, True)
     assert matplotlib_plot is not None
+
+
+def test_scheduler():
+    base_lr = 1e-3
+    start_lr_coeff = 0.1
+    end_lr_coeff = 0.01
+    optim = torch.optim.Adam([torch.nn.Parameter(torch.randn(1))], lr=base_lr)
+    scheduler = WarmupCosineSchedule(
+        optim, warmup_steps=10, total_steps=100, start_lr_coeff=start_lr_coeff, end_lr_coeff=end_lr_coeff
+    )
+    lrs = []
+    for _ in range(150):
+        lrs.append(scheduler.get_last_lr()[0])
+        optim.step()
+        scheduler.step()
+    for lr in lrs[:10]:
+        assert base_lr * start_lr_coeff <= lr <= base_lr
+    for lr in lrs[10:100]:
+        assert base_lr * end_lr_coeff <= lr <= base_lr
+    for lr in lrs[100:]:
+        assert lr == base_lr * end_lr_coeff
