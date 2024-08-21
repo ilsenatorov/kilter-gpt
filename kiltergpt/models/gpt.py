@@ -256,7 +256,9 @@ class GPTModel(L.LightningModule):
             prompt = torch.cat((prompt, next_prompt), dim=0)
             # Stop when you get to 2x length of context length
             if len(prompt) > self.config.context_len * 2 - 1:
-                prompt = torch.cat((prompt, torch.tensor(self.tokenizer.eos_token_id, device=self.device)), dim=0)
+                prompt = torch.cat(
+                    (prompt, torch.tensor(self.tokenizer.eos_token_id, device=self.device).unsqueeze(0)), dim=0
+                )
                 break
         return prompt
 
