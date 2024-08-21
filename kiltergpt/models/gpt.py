@@ -182,6 +182,8 @@ class GPTModel(L.LightningModule):
             self.test_generated.append(self.generate(prompt, 0.2, 0.7).detach().cpu())
             self.test_real.append(target.detach().cpu())
 
+    # def on_test_epoch_end(self):
+
     def configure_optimizers(self):
         param_dict = {pn: p for pn, p in self.named_parameters()}
         param_dict = {pn: p for pn, p in param_dict.items() if p.requires_grad}

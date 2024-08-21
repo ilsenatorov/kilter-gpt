@@ -17,13 +17,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Changed `utils.py` to `utils/` and created own files for each different utils.
+
 ### Removed
 
 ### Fixed
 
 - Fixed paths in `preprocess.py` to be OS agnostic.
-- Removed hard-coded devices count in `train.py`.
 - Fixed paths in other scripts to be OS agnostic.
+- Removed hard-coded devices count in `train.py`.
 - Fixed DataModule `num_workers` not being used.
 
 ### Deprecated
