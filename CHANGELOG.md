@@ -14,10 +14,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added Plotter tests.
 - Added lr scheduler tests.
 - Added test_step tests.
+- Added token distribution spearman correlation coefficient to the metrics.
 
 ### Changed
 
 - Changed `utils.py` to `utils/` and created own files for each different utils.
+- Removed tokens from 12x14 kilterboard from the dataset.
 
 ### Removed
 

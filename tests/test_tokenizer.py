@@ -7,7 +7,7 @@ def test_init():
     """Tests that the tokenizer initializes correctly."""
     tokenizer = Tokenizer()
     assert isinstance(tokenizer, Tokenizer)
-    assert len(tokenizer.hold_token_ids) == 527  # original kilterboard has 527 holds
+    assert len(tokenizer.hold_token_ids) == 476  # original kilterboard has 527 holds
     assert len(tokenizer.angle_token_ids) == (95 // 5)  # 19 angle options
     assert len(tokenizer.color_token_ids) == 4  # 4 hold roles
     assert len(tokenizer.grade_token_ids) == 25  # 24 grades (from 4a to 9a, first plus grade is 6a+)

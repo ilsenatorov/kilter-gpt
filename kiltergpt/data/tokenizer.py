@@ -59,7 +59,11 @@ class Tokenizer:
 
     @staticmethod
     def hold_tokens():
-        return [f"p{i}" for i in range(1073, 1600)]
+        res = []
+        for i in range(1073, 1600):
+            if i < 1396 or i > 1446:
+                res.append(f"p{i}")
+        return res
 
     @staticmethod
     def color_tokens():

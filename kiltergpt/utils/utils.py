@@ -1,6 +1,8 @@
 import math
 from collections import Counter
 
+from ..data.tokenizer import Tokenizer
+
 
 def str_to_bool(value: str) -> bool:
     """Command line inputs that are bools."""
@@ -19,13 +21,13 @@ class KilterPolice:
 
     def __init__(
         self,
-        allowed_holds: set,
+        tokenizer: Tokenizer,
         n_start_holds: tuple[int, int] = (1, 2),
         n_finish_holds: tuple[int, int] = (1, 2),
         n_total_holds: tuple[int, int] = (2, math.inf),
     ):
-        self.allowed_holds = allowed_holds
-        self.allowed_colors = set([12, 13, 14, 15])
+        self.allowed_colors = set([int(x[1:]) for x in tokenizer.color_tokens()])
+        self.allowed_holds = set([int(x[1:]) for x in tokenizer.hold_tokens()])
         self.n_start_holds = n_start_holds
         self.n_finish_holds = n_finish_holds
         self.n_total_holds = n_total_holds

@@ -68,6 +68,7 @@ def test_test_step(sample_config):
     model.test_step((sample_batch, sample_batch), 0)
     assert len(model.test_generated) == 2
     assert len(model.test_real) == 2
+    model.on_test_epoch_end()
 
 
 def test_app(sample_config):

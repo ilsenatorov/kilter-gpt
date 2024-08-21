@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from kiltergpt.data.tokenizer import Tokenizer
 from kiltergpt.utils import KilterPolice
 
 parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
@@ -53,7 +54,7 @@ holds = holds[holds["layout_id"] == 1]  # only original boards
 holds = holds[holds.index.to_series() < 1800]
 
 
-kp = KilterPolice(set(holds.index), n_total_holds=(args.min_holds, args.max_holds))
+kp = KilterPolice(Tokenizer(), n_total_holds=(args.min_holds, args.max_holds))
 df["valid"] = df["frames"].apply(kp.check)
 df[~df["valid"]].to_csv(processed_data_path / "invalid_climbs.csv")
 df = df[df["valid"]]

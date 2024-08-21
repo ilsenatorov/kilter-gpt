@@ -4,9 +4,10 @@ import lightning as L
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torchmetrics.functional as M
 from fastapi import FastAPI
 
-from ..utils import Plotter, WarmupCosineSchedule
+from ..utils import Plotter, WarmupCosineSchedule, get_histogram
 
 
 class LayerNorm(nn.Module):
@@ -179,10 +180,17 @@ class GPTModel(L.LightningModule):
     def test_step(self, batch, batch_idx):
         prompts, targets = batch
         for prompt, target in zip(prompts, targets, strict=True):
-            self.test_generated.append(self.generate(prompt, 0.2, 0.7).detach().cpu())
-            self.test_real.append(target.detach().cpu())
+            generated = self.generate(prompt, 0.2, 0.7).detach().cpu()
+            generated = generated[generated != self.tokenizer.pad_token_id]
+            target = target[target != self.tokenizer.pad_token_id].detach().cpu()
+            self.test_generated.append(generated)
+            self.test_real.append(target)
 
-    # def on_test_epoch_end(self):
+    def on_test_epoch_end(self):
+        hist_generated = get_histogram(self.test_generated, self.tokenizer.vocab_size)
+        hist_real = get_histogram(self.test_real, self.tokenizer.vocab_size)
+        hist_pearson = M.spearman_corrcoef(hist_generated, hist_real)
+        self.log("test/hist_pearson", hist_pearson)
 
     def configure_optimizers(self):
         param_dict = {pn: p for pn, p in self.named_parameters()}
