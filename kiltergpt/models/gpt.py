@@ -181,11 +181,11 @@ class GPTModel(L.LightningModule):
     def test_step(self, batch, batch_idx):
         prompts, targets = batch
         for prompt, target in zip(prompts, targets, strict=True):
-            generated = self.generate(prompt, 0.2, 0.7).detach().cpu()
+            generated = self.generate(prompt, 0.2, 0.7)
             generated = generated[generated != self.tokenizer.pad_token_id]
-            target = target[target != self.tokenizer.pad_token_id].detach().cpu()
-            self.test_generated.append(generated)
-            self.test_real.append(target)
+            target = target[target != self.tokenizer.pad_token_id]
+            self.test_generated.append(generated.detach().cpu())
+            self.test_real.append(target.detach().cpu())
 
     def _get_hist_pearson(self):
         """Calculate the spearman correlation between token distributions of real and genenerated sequences"""
