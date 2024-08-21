@@ -15,12 +15,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added lr scheduler tests.
 - Added test_step tests.
 - Added token distribution spearman correlation coefficient to the metrics.
+- Added jaccard similarity to the metrics.
 - `Tokenizer.onehot` now also works on encoded tensors.
 
 ### Changed
 
 - Changed `utils.py` to `utils/` and created own files for each different utils.
 - Removed tokens from 12x14 kilterboard from the dataset.
+- Reverted to randomised dataset sampling.
 
 ### Removed
 

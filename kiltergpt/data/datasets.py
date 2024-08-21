@@ -1,3 +1,5 @@
+import math
+import random
 from pathlib import Path
 
 import pandas as pd
@@ -16,7 +18,8 @@ class KilterGPTDataset(Dataset):
         context_len: int = 64,  # 1 hold == 2 tokens
         shuffle_tokens: bool = True,
         label_smoothing: bool = True,
-        prompt_size: float = 0.5,
+        prompt_size: float = 0.2,
+        min_tokens: int = 5,  # Always have at least 5 tokens - BOS, ANGLE, GRADE, HOLD1, COLOR1
     ):
         self.df = pd.read_csv(filename)
         self.tokenizer = tokenizer
@@ -24,6 +27,7 @@ class KilterGPTDataset(Dataset):
         self.shuffle_tokens = shuffle_tokens
         self.label_smoothing = label_smoothing
         self.prompt_size = prompt_size
+        self.min_tokens = min_tokens
         self.eval = False
 
     def __len__(self) -> int:
@@ -39,7 +43,7 @@ class KilterGPTDataset(Dataset):
             shuffle=self.shuffle_tokens,
         )
         n_tokens = tokenized.size(0)
-        prompt_size = int(n_tokens * self.prompt_size)
+        prompt_size = max(math.ceil(n_tokens * self.prompt_size), self.min_tokens)
         x = self.tokenizer.pad(tokenized[:prompt_size], self.context_len)
         y = self.tokenizer.pad(tokenized, self.context_len)
         return x, y
@@ -60,8 +64,15 @@ class KilterGPTDataset(Dataset):
             row["font_grade"],
             shuffle=self.shuffle_tokens,
         )
-        x = tokenized[:-1]
-        y = tokenized[1:]
+        n = tokenized.size(0)  # total tokens
+        if n <= self.min_tokens:
+            end = n
+        else:
+            end = random.randint(self.min_tokens, n)
+        start = max(0, end - self.context_len - 1)  # buffer start, - 1 for buffer overlap
+        buffer = tokenized[start:end]
+        x = buffer[:-1]
+        y = buffer[1:]
         if self.label_smoothing:
             y = self._create_smoothed_labels(y)
         x = self.tokenizer.pad(x, self.context_len)
