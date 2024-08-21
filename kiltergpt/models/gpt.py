@@ -254,9 +254,10 @@ class GPTModel(L.LightningModule):
             context = prompt[-self.config.context_len :]
             next_prompt = self._generate_token(context, temperature, p)
             prompt = torch.cat((prompt, next_prompt), dim=0)
-            if len(prompt) > self.config.context_len * 2:
+            # Stop when you get to 2x length of context length
+            if len(prompt) > self.config.context_len * 2 - 1:
+                prompt = torch.cat((prompt, torch.tensor(self.tokenizer.eos_token_id, device=self.device)), dim=0)
                 break
-            # If the prompt is too long, break the loop
         return prompt
 
     @torch.jit.export
