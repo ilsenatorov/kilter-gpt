@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added token distribution spearman correlation coefficient to the metrics.
 - Added jaccard similarity to the metrics.
 - `Tokenizer.onehot` now also works on encoded tensors.
+- Choose data split in `preprocess.py`
 
 ### Changed
 

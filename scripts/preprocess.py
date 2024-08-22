@@ -13,9 +13,12 @@ parser.add_argument("--min_ascents", type=int, default=1, help="Minimum number o
 parser.add_argument("--min_quality", type=int, default=2, help="Minimum quality")
 parser.add_argument("--min_holds", type=int, default=4, help="Minimum number of holds")
 parser.add_argument("--max_holds", type=int, default=28, help="Maximum number of holds")
+parser.add_argument("--data_split", type=float, nargs=3, default=[0.9, 0.09, 0.01], help="How to split the data")
 args = parser.parse_args()
 
 
+assert sum(args.data_split) == 1, "Data split fractions must sum to 1."
+assert len(args.data_split) == 3, "Must have 3 splits for train, val and test."
 data_path = Path("data")
 processed_data_path = data_path / "processed"
 processed_data_path.mkdir(exist_ok=True)
@@ -63,11 +66,12 @@ print(df.shape)
 holds.to_csv(processed_data_path / "holds.csv")
 grades.to_csv(processed_data_path / "grades.csv")
 
+train_frac, val_frac, test_frac = args.data_split
 # split into train, val and test
 df = df.sample(frac=1)  # shuffle
-train = df.iloc[: int(0.8 * len(df))]
-val = df.iloc[int(0.8 * len(df)) : int(0.9 * len(df))]
-test = df.iloc[int(0.9 * len(df)) :]
+train = df.iloc[: int(train_frac * len(df))]
+val = df.iloc[int(train_frac * len(df)) : int(train_frac + val_frac * len(df))]
+test = df.iloc[int(train_frac + val_frac * len(df)) :]
 train.to_csv(processed_data_path / "train.csv")
 val.to_csv(processed_data_path / "val.csv")
 test.to_csv(processed_data_path / "test.csv")

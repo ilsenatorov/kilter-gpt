@@ -7,7 +7,7 @@ import torch.nn.functional as F
 import torchmetrics.functional as M
 from fastapi import FastAPI
 
-from ..utils import Plotter, WarmupCosineSchedule
+from ..utils import WarmupCosineSchedule
 from ..utils.metrics import get_histogram, jaccard_similarity
 
 
@@ -191,8 +191,8 @@ class GPTModel(L.LightningModule):
         """Calculate the spearman correlation between token distributions of real and genenerated sequences"""
         hist_generated = get_histogram(self.test_generated, self.tokenizer.vocab_size)
         hist_real = get_histogram(self.test_real, self.tokenizer.vocab_size)
-        hist_pearson = M.spearman_corrcoef(hist_generated, hist_real)
-        return hist_pearson
+        hist_spearman = M.spearman_corrcoef(hist_generated, hist_real)
+        return hist_spearman
 
     def _get_jaccard_similarity(self):
         generated_onehot = torch.stack([self.tokenizer.onehot(x) for x in self.test_generated])
@@ -201,9 +201,9 @@ class GPTModel(L.LightningModule):
         return jaccard
 
     def on_test_epoch_end(self):
-        hist_pearson = self._get_hist_pearson()
+        hist_spearman = self._get_hist_pearson()
         jaccard_similarity = self._get_jaccard_similarity()
-        self.log_dict({"test/hist_pearson": hist_pearson, "test/jaccard_similarity": jaccard_similarity.mean()})
+        self.log_dict({"test/hist_spearman": hist_spearman, "test/jaccard_similarity": jaccard_similarity.mean()})
 
     def configure_optimizers(self):
         param_dict = {pn: p for pn, p in self.named_parameters()}
