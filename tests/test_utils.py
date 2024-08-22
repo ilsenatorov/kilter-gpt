@@ -62,7 +62,7 @@ def test_plotter():
     climb = "p1234r12p1235r13p1236r14p1237r15"
     normal_plot = plotter.plot_climb(climb)
     assert normal_plot is not None
-    matplotlib_plot = plotter.plot_climb(climb, True)
+    matplotlib_plot = plotter.plot_climb(climb, return_fig=True)
     assert matplotlib_plot is not None
 
 
