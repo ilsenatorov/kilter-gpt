@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Tokenizer.onehot` now also works on encoded tensors.
 - Choose data split in `preprocess.py`
 - Added highlighting to plotter
+- Added image loggin on each epoch
 
 ### Changed
 

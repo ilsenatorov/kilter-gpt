@@ -7,7 +7,7 @@ import torch.nn.functional as F
 import torchmetrics.functional as M
 from fastapi import FastAPI
 
-from ..utils import WarmupCosineSchedule
+from ..utils import Plotter, WarmupCosineSchedule
 from ..utils.metrics import get_histogram, jaccard_similarity
 
 
@@ -143,7 +143,6 @@ class GPTModel(L.LightningModule):
         self.config = config
         self.tokenizer = tokenizer
         self.model = GPT(self.config)
-        # self.model = torch.compile(self.model)
 
     def get_loss(self, logits, targets):
         B, C, V = logits.shape
@@ -160,7 +159,7 @@ class GPTModel(L.LightningModule):
         logits = self.model.forward(x)
         return logits
 
-    def shared_step(self, batch, name="train"):
+    def shared_step(self, batch: list[torch.Tensor, torch.Tensor], name: str):
         text, target = batch
         logits = self.forward(text)
         loss = self.get_loss(logits, target)
@@ -206,7 +205,21 @@ class GPTModel(L.LightningModule):
         self.log_dict({"test/hist_spearman": hist_spearman, "test/jaccard_similarity": jaccard_similarity.mean()})
 
     def on_train_epoch_end(self):
-        generated_route = self.generate_from_string("p1387", 40, "7a")
+        plotter = Plotter()
+        finish_hold = "p1387"
+        setup = []
+        for temp in [0.1, 0.3, 0.5, 0.7]:
+            for p in [0.7, 1.0]:
+                for angle, grade in [(30, "6a"), (40, "7a"), (50, "8a")]:
+                    setup.append((angle, grade, temp, p))
+        route_frames = [
+            self.generate_from_string(f"{finish_hold}r14", angle, grade, temp, p) for angle, grade, temp, p in setup
+        ]
+        route_images = [plotter.plot_climb(x, highlight=finish_hold) for x in route_frames]
+        captions = [f"{grade} @ {angle}, temp={temp}, p={p}" for angle, grade, temp, p in setup]
+        self.logger.log_image(key="image", images=route_images, caption=captions)
+        print("LOGGING IMAGES")
+        return super().on_train_epoch_end()
 
     def configure_optimizers(self):
         param_dict = {pn: p for pn, p in self.named_parameters()}
