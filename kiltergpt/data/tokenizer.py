@@ -174,7 +174,6 @@ class Tokenizer:
         eos: bool = True,
         pad: int = 0,
     ) -> torch.Tensor:
-        assert " " not in frames, "Frames should not contain spaces"
         assert all(x in "0123456789pr" for x in frames), "Frames should only contain p, r and digits"
         tokens = []
         if bos:

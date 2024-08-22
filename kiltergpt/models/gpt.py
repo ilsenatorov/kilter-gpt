@@ -205,6 +205,9 @@ class GPTModel(L.LightningModule):
         jaccard_similarity = self._get_jaccard_similarity()
         self.log_dict({"test/hist_spearman": hist_spearman, "test/jaccard_similarity": jaccard_similarity.mean()})
 
+    def on_train_epoch_end(self):
+        generated_route = self.generate_from_string("p1387", 40, "7a")
+
     def configure_optimizers(self):
         param_dict = {pn: p for pn, p in self.named_parameters()}
         param_dict = {pn: p for pn, p in param_dict.items() if p.requires_grad}
