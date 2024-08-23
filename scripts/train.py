@@ -36,6 +36,7 @@ dm = KilterDataModule(
     batch_size=config.batch_size,
     context_len=config.context_len,
     label_smoothing=config.label_smoothing,
+    subset=config.subset,
 )
 dm.setup()
 

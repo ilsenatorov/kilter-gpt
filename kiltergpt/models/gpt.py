@@ -200,14 +200,14 @@ class GPTModel(L.LightningModule):
         return jaccard
 
     def _check_num_possible_climbs(self):
+        n_runs = len(self.test_generated // self.config.batch_size)
         for temp in [0.1, 0.3, 0.5, 0.7]:
             climbs = set()
-            for _ in range(10):
+            for _ in range(n_runs):
                 climb = self.generate_from_string("p1387r14", 40, "7a", temp, 0.7)
                 onehot = self.tokenizer.onehot(climb)
                 climbs.add(tuple(onehot.tolist()))
-            self.log(f"test/temp={temp}_unqiue_climbs", len(climbs))
-            print(f"Temp={temp}, unique_climbs={len(climbs)}")
+            self.log(f"test/temp={temp}_unqiue_climbs_frac", len(climbs) / n_runs)
 
     def on_test_epoch_end(self):
         hist_spearman = self._get_hist_pearson()

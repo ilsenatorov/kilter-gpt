@@ -91,3 +91,6 @@ class KilterDataset(Dataset):
         for idx, i in enumerate(hold_indices):
             labels[i, hold_values[idx:]] = 1
         return labels
+
+    def __repr__(self):
+        return f"KilterDataset of length {self.__len__()}"

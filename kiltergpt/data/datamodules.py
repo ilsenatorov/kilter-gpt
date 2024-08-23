@@ -70,3 +70,8 @@ class KilterDataModule(L.LightningDataModule):
 
     def test_dataloader(self) -> DataLoader:
         return self._get_dataloader(self.test)
+
+    def __repr__(self):
+        if not hasattr(self, "train"):
+            return "KilterDataModule"
+        return f"KilterDataModule, train - {len(self.train)}, val - {len(self.val)}, test - {len(self.test)}"
