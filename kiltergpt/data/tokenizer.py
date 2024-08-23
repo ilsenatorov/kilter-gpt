@@ -61,13 +61,51 @@ class Tokenizer:
     def hold_tokens():
         res = []
         for i in range(1073, 1600):
+            # Excludes the 12x14 holds
             if i < 1396 or i > 1446:
                 res.append(f"p{i}")
         return res
 
     @staticmethod
     def color_tokens():
-        return ["r12", "r13", "r14", "r15"]
+        return [
+            Tokenizer.start_token(),
+            Tokenizer.handhold_token(),
+            Tokenizer.finish_token(),
+            Tokenizer.foothold_token(),
+        ]
+
+    @staticmethod
+    def start_token() -> str:
+        return "r12"
+
+    @staticmethod
+    def handhold_token() -> str:
+        return "r13"
+
+    @staticmethod
+    def finish_token() -> str:
+        return "r14"
+
+    @staticmethod
+    def foothold_token() -> str:
+        return "r15"
+
+    @property
+    def start_token_id(self) -> int:
+        return self.encode_map[self.start_token()]
+
+    @property
+    def handhold_token_id(self) -> int:
+        return self.encode_map[self.handhold_token()]
+
+    @property
+    def finish_token_id(self) -> int:
+        return self.encode_map[self.finish_token()]
+
+    @property
+    def foothold_token_id(self) -> int:
+        return self.encode_map[self.foothold_token()]
 
     @staticmethod
     def grade_tokens():

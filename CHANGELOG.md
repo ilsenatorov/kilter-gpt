@@ -17,9 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added token distribution spearman correlation coefficient to the metrics.
 - Added jaccard similarity to the metrics.
 - `Tokenizer.onehot` now also works on encoded tensors.
-- Choose data split in `preprocess.py`
-- Added highlighting to plotter
-- Added image loggin on each epoch
+- Choose data split in `preprocess.py`.
+- Added highlighting to plotter.
+- Added image logging at the end of each epoch.
+- Set limit on the number of start and finish holds to 2 during generation.
 
 ### Changed
 

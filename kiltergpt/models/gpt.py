@@ -241,20 +241,18 @@ class GPTModel(L.LightningModule):
         return self.model.embed(x)
 
     def _sample_from_logits(self, logits: torch.Tensor, p: float = 1.0) -> torch.Tensor:
+        """Given logits of tokens, sample using top-p sampling"""
         if p < 1.0:
             # sort by probability, get cumulative probs
             sorted_logits, sorted_indices = torch.sort(logits, descending=True)
             cumulative_probs = torch.cumsum(F.softmax(sorted_logits, dim=-1), dim=-1)
-
             # Remove tokens with cumulative probability above the threshold
             sorted_indices_to_remove = cumulative_probs > p
             sorted_indices_to_remove[1:] = sorted_indices_to_remove[:-1].clone()
             sorted_indices_to_remove[0] = 0
-
             # Scatter sorted tensors to original indexing
             indices_to_remove = sorted_indices_to_remove.scatter(0, sorted_indices, sorted_indices_to_remove)
             logits[indices_to_remove] = float("-inf")
-
         # Sample from the filtered distribution
         probs = F.softmax(logits, dim=-1)
         next_prompt = torch.multinomial(probs, num_samples=1).to(self.device)
@@ -265,19 +263,26 @@ class GPTModel(L.LightningModule):
         prompt: torch.LongTensor: A left-padded tensor of token ids
         """
         # TODO additionally check the number of start and finish tokens
-        penultimate_token = prompt[-1]
+        last_token = prompt[-1]
         logits = self.forward(prompt.unsqueeze(0)).squeeze(0)
         logits = logits[-1, :] / temperature  # Get logits for the last position
-        # After color token only hold or EOS token can be generated
-        if penultimate_token in self.tokenizer.color_token_ids.to(self.device):
+        # After color a token only hold or EOS token can be generated
+        if last_token in self.tokenizer.color_token_ids.to(self.device):
             mask = torch.zeros_like(logits, dtype=torch.bool)
             mask[self.tokenizer.hold_token_ids] = True
             mask[self.tokenizer.eos_token_id] = True
             logits[~mask] = float("-inf")
-        # After hold token only color token can be generated
-        elif penultimate_token in self.tokenizer.hold_token_ids.to(self.device):
+        # After a hold token only color token can be generated
+        elif last_token in self.tokenizer.hold_token_ids.to(self.device):
             mask = torch.zeros_like(logits, dtype=torch.bool)
             mask[self.tokenizer.color_token_ids] = True
+            # not more than 2 starts
+            if (prompt == self.tokenizer.start_token_id).to(torch.long).sum() >= 2:
+                mask[self.tokenizer.start_token_id] = False
+            # not more than 2 finishes
+            if (prompt == self.tokenizer.finish_token_id).to(torch.long).sum() >= 2:
+                mask[self.tokenizer.finish_token_id] = False
+            # All not allowed tokens set prob to 0
             logits[~mask] = float("-inf")
         return self._sample_from_logits(logits, p)
 
