@@ -19,7 +19,7 @@ class Plotter:
     def _create_image_coords(self, image_coords: pd.DataFrame):
         return {name: (row["img_x"], row["img_y"]) for name, row in image_coords.iterrows()}
 
-    def plot_climb(self, frames: str, highlight: str = None, return_fig: bool = False):
+    def plot_climb(self, frames: str, return_fig: bool = False, highlight: str = None):
         assert all(x in "0123456789pr" for x in frames), "Frames should only contain p, r and digits"
         frames = frames.replace(" ", "")  # here the input takes no whitespace
         board_path = "figs/full_board_commercial.png"

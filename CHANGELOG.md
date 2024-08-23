@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added highlighting to plotter.
 - Added image logging at the end of each epoch.
 - Set limit on the number of start and finish holds to 2 during generation.
+- Set limit to 30 holds (64 tokens) during generation.
 
 ### Changed
 

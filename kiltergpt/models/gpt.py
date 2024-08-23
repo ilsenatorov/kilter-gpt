@@ -277,6 +277,7 @@ class GPTModel(L.LightningModule):
             mask = torch.zeros_like(logits, dtype=torch.bool)
             mask[self.tokenizer.color_token_ids] = True
             # not more than 2 starts
+            # TODO check that this works
             if (prompt == self.tokenizer.start_token_id).to(torch.long).sum() >= 2:
                 mask[self.tokenizer.start_token_id] = False
             # not more than 2 finishes
@@ -293,8 +294,8 @@ class GPTModel(L.LightningModule):
             context = prompt[-self.config.context_len :]
             next_prompt = self._generate_token(context, temperature, p)
             prompt = torch.cat((prompt, next_prompt), dim=0)
-            # Stop when you get to 2x length of context length
-            if len(prompt) > self.config.context_len * 2 - 1:
+            # Stop when you get to full context window (30 holds)
+            if prompt[prompt != self.tokenizer.pad_token_id].size(0) >= self.config.context_len - 1:
                 prompt = torch.cat(
                     (prompt, torch.tensor(self.tokenizer.eos_token_id, device=self.device).unsqueeze(0)), dim=0
                 )
