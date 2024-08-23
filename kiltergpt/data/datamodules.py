@@ -4,7 +4,7 @@ import lightning as L
 import pandas as pd
 from torch.utils.data import DataLoader
 
-from .datasets import KilterGPTDataset
+from .datasets import KilterDataset
 from .tokenizer import Tokenizer
 
 
@@ -34,7 +34,7 @@ class KilterDataModule(L.LightningDataModule):
 
     def setup(self, stage=None):
         self.tokenizer = Tokenizer()
-        self.train = KilterGPTDataset(
+        self.train = KilterDataset(
             self.data_dir / "train.csv",
             self.tokenizer,
             context_len=self.context_len,
@@ -43,7 +43,7 @@ class KilterDataModule(L.LightningDataModule):
             min_tokens=self.min_tokens,
         )
 
-        self.val = KilterGPTDataset(
+        self.val = KilterDataset(
             self.data_dir / "val.csv",
             self.tokenizer,
             context_len=self.context_len,
@@ -51,7 +51,7 @@ class KilterDataModule(L.LightningDataModule):
             prompt_size=self.prompt_size,
             min_tokens=self.min_tokens,
         )
-        self.test = KilterGPTDataset(
+        self.test = KilterDataset(
             self.data_dir / "test.csv",
             self.tokenizer,
             context_len=self.context_len,

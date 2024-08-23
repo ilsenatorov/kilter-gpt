@@ -3,7 +3,7 @@ import pytest
 import torch
 
 from kiltergpt.data.datamodules import KilterDataModule
-from kiltergpt.data.datasets import KilterGPTDataset
+from kiltergpt.data.datasets import KilterDataset
 from kiltergpt.data.tokenizer import Tokenizer
 
 
@@ -24,7 +24,7 @@ def dataset_dir(tmp_path):
 
 @pytest.fixture
 def dataset(dataset_dir):
-    return KilterGPTDataset(dataset_dir / "train.csv", Tokenizer(), context_len=64)
+    return KilterDataset(dataset_dir / "train.csv", Tokenizer(), context_len=64)
 
 
 def test_dataset_length(dataset):

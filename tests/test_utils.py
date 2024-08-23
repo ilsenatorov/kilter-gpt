@@ -3,6 +3,7 @@ import math
 import pytest
 import torch
 
+from kiltergpt.data.tokenizer import Tokenizer
 from kiltergpt.utils import KilterPolice, Plotter, WarmupCosineSchedule, str_to_bool
 
 
@@ -27,14 +28,14 @@ def sane_climb():
 @pytest.fixture
 def kilter_police():
     return KilterPolice(
-        allowed_holds=set([i for i in range(1200, 1300)]),
+        Tokenizer(),
         n_start_holds=(1, 2),
         n_finish_holds=(1, 2),
-        n_total_holds=(2, math.inf),
+        n_total_holds=(2, 999),
     )  # p1200 to p1300 are allowed, 1-2 start holds, 1-2 finish holds, 2+ total holds
 
 
-def kilter_police_allowed_things(kilter_police, sane_climb):
+def test_kilter_police_allowed_things(kilter_police, sane_climb):
     assert kilter_police.check(sane_climb)
 
 
@@ -47,12 +48,12 @@ def kilter_police_allowed_things(kilter_police, sane_climb):
         "p1250r14p1251r14p1252r14",  # too many finish holds
     ],
 )
-def kilter_police_disallowed_things(kilter_police, sane_climb, broken_addition):
+def test_kilter_police_disallowed_things(kilter_police, sane_climb, broken_addition):
     assert not kilter_police.check(sane_climb + broken_addition)
     assert not kilter_police.check(broken_addition + sane_climb)
 
 
-def kilter_police_too_few(kilter_police):
+def test_kilter_police_too_few(kilter_police):
     assert not kilter_police.check("")  # empty climb
     assert not kilter_police.check("p1200r12")  # only one hold
 
@@ -62,7 +63,7 @@ def test_plotter():
     climb = "p1234r12p1235r13p1236r14p1237r15"
     normal_plot = plotter.plot_climb(climb)
     assert normal_plot is not None
-    matplotlib_plot = plotter.plot_climb(climb, return_fig=True)
+    matplotlib_plot = plotter.plot_climb(climb, return_fig=True, highlight="p1234")
     assert matplotlib_plot is not None
 
 

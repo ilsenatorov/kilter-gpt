@@ -24,7 +24,7 @@ class KilterPolice:
         tokenizer: Tokenizer,
         n_start_holds: tuple[int, int] = (1, 2),
         n_finish_holds: tuple[int, int] = (1, 2),
-        n_total_holds: tuple[int, int] = (2, math.inf),
+        n_total_holds: tuple[int, int] = (2, 999),
     ):
         self.allowed_colors = set([int(x[1:]) for x in tokenizer.color_tokens()])
         self.allowed_holds = set([int(x[1:]) for x in tokenizer.hold_tokens()])

@@ -9,7 +9,7 @@ from torch.utils.data import Dataset
 from .tokenizer import Tokenizer
 
 
-class KilterGPTDataset(Dataset):
+class KilterDataset(Dataset):
     def __init__(
         self,
         filename: str | Path,

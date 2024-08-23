@@ -13,6 +13,12 @@ from matplotlib import pyplot as plt
 class Plotter:
     """Plots the selected holds onto the empty kilterboard. Requires df from `figs/` folder."""
 
+    start_color = (0, 255, 0)
+    hand_color = (0, 200, 255)
+    finish_color = (255, 0, 255)
+    foot_color = (255, 165, 0)
+    highlight_color = (255, 255, 255)
+
     def __init__(self):
         self.image_coords = self._create_image_coords(pd.read_csv("figs/image_coords.csv", index_col=0))
 
@@ -31,14 +37,17 @@ class Plotter:
                 continue
             radius = 30
             thickness = 2
-            if hold_type == str(12):
-                color = (0, 255, 0)  # start
-            if hold_type == str(13):  # hands
-                color = (0, 200, 255)
-            if hold_type == str(14):  # end
-                color = (255, 0, 255)
-            if hold_type == str(15):  # feet
-                color = (255, 165, 0)
+            match hold_type:
+                case "12":
+                    color = self.start_color
+                case "13":
+                    color = self.hand_color
+                case "14":
+                    color = self.finish_color
+                case "15":
+                    color = self.foot_color
+                case _:
+                    raise ValueError(f"Unknown hold color {color}")
             image = cv2.circle(image, self.image_coords[int(hold_id)], radius, color, thickness)
         if highlight is not None:
             for hold_id in highlight.split("p")[1:]:
@@ -46,7 +55,10 @@ class Plotter:
                     continue
                 radius = 24
                 thickness = 3
-                image = cv2.circle(image, self.image_coords[int(hold_id)], radius, (255, 255, 255), thickness)
+                image = cv2.circle(image, self.image_coords[int(hold_id)], radius, self.highlight_color, thickness)
         if return_fig:
             return plt.imshow(image)
         return image
+
+    def __call__(self, frames: str, return_fig: bool = False, highlight: str = None):
+        return self.plot_climb(frames, return_fig, highlight)

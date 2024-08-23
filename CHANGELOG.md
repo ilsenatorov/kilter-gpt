@@ -28,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Changed `utils.py` to `utils/` and created own files for each different utils.
 - Removed tokens from 12x14 kilterboard from the dataset.
 - Reverted to randomised dataset sampling.
+- Renamed `KilterGPTDataset` to `KilterDataset`
 
 ### Removed
 
