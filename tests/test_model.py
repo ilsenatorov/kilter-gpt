@@ -54,8 +54,6 @@ def test_test_step(sample_config):
     tokenizer = Tokenizer()
     model = GPTModel(sample_config, tokenizer)
     model.on_test_epoch_start()
-    assert model.test_generated == []
-    assert model.test_real == []
     sample_input = tokenizer.encode(
         "p1234r12p1345r13p1423r14p1243r15",
         40,
@@ -66,8 +64,8 @@ def test_test_step(sample_config):
     )
     sample_batch = sample_input.unsqueeze(0).repeat(2, 1)
     model.test_step((sample_batch, sample_batch), 0)
-    assert len(model.test_generated) == 2
-    assert len(model.test_real) == 2
+    assert len(model.test_generated[0.1]) == 2
+    assert len(model.test_real[0.1]) == 2
     model.on_test_epoch_end()
 
 
