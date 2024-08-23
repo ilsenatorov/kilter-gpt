@@ -31,7 +31,8 @@ By defauly it's generated from the `python scripts/preprocess.py` script.
 
 - Add code to convert model to torchscript/onnx
 - Hyperparameter tuning
-- Visualize the attention
+- Visualize the attention matrix
+- Check the block logic
 - ~~Write better tests~~
 - ~~Improve the CI/CD side of things~~
 - ~~Add some automatic evaluation metrics (similarity to real data, consistency, etc.)~~
