@@ -202,6 +202,9 @@ class GPTModel(L.LightningModule):
 
     def _get_num_possible_climbs(self, temp: float):
         n_runs = 40
+        # test run, if the model is too small
+        if self.config.n_embed < 32:
+            n_runs = 4
         climbs = set()
         for _ in range(n_runs):
             climb = self.generate_from_string("p1387r14", 40, "7a", temp, 0.7)
