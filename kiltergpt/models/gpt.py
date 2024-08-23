@@ -200,7 +200,7 @@ class GPTModel(L.LightningModule):
         return jaccard
 
     def _check_num_possible_climbs(self):
-        n_runs = len(self.test_generated // self.config.batch_size)
+        n_runs = len(self.test_generated) // self.config.batch_size
         for temp in [0.1, 0.3, 0.5, 0.7]:
             climbs = set()
             for _ in range(n_runs):
