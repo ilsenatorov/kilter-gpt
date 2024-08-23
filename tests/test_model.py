@@ -18,7 +18,7 @@ def sample_config():
         wd=1e-1,
         n_head=2,
         n_layer=2,
-        n_embed=16,
+        n_embed=4,
         context_len=64,
         dropout=0.2,
         bias=False,
