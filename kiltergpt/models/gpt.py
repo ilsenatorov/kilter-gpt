@@ -207,18 +207,13 @@ class GPTModel(L.LightningModule):
     def on_train_epoch_end(self):
         plotter = Plotter()
         finish_hold = "p1387"
-        setup = []
+        setup = [(30, "6a"), (40, "7a"), (50, "8a")]
         for temp in [0.1, 0.3, 0.5, 0.7]:
             for p in [0.7, 1.0]:
-                for angle, grade in [(30, "6a"), (40, "7a"), (50, "8a")]:
-                    setup.append((angle, grade, temp, p))
-        route_frames = [
-            self.generate_from_string(f"{finish_hold}r14", angle, grade, temp, p) for angle, grade, temp, p in setup
-        ]
-        route_images = [plotter.plot_climb(x, highlight=finish_hold) for x in route_frames]
-        captions = [f"{grade} @ {angle}, temp={temp}, p={p}" for angle, grade, temp, p in setup]
-        self.logger.log_image(key="image", images=route_images, caption=captions)
-        print("LOGGING IMAGES")
+                route_frames = [self.generate_from_string(f"{finish_hold}r14", angle, grade) for angle, grade in setup]
+                route_images = [plotter.plot_climb(x, highlight=finish_hold) for x in route_frames]
+                captions = [f"{grade} @ {angle}, temp={temp}, p={p}" for angle, grade in setup]
+                self.logger.log_image(key=f"image/temp={temp}/p={p}", images=route_images, caption=captions)
         return super().on_train_epoch_end()
 
     def configure_optimizers(self):
@@ -301,7 +296,6 @@ class GPTModel(L.LightningModule):
                 break
         return prompt
 
-    @torch.jit.export
     def generate_from_string(
         self,
         frames: str,
