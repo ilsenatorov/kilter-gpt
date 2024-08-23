@@ -20,8 +20,10 @@ class KilterDataset(Dataset):
         label_smoothing: bool = True,
         prompt_size: float = 0.2,
         min_tokens: int = 5,  # Always have at least 5 tokens - BOS, ANGLE, GRADE, HOLD1, COLOR1
+        subset: float = 1.0,
     ):
-        self.df = pd.read_csv(filename)
+        assert 0 < subset <= 1, f"Subset must be between 0 and 1, got {subset}"
+        self.df = pd.read_csv(filename).sample(frac=subset)
         self.tokenizer = tokenizer
         self.context_len = context_len
         self.shuffle_tokens = shuffle_tokens

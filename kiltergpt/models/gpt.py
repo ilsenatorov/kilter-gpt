@@ -199,9 +199,20 @@ class GPTModel(L.LightningModule):
         jaccard = jaccard_similarity(generated_onehot, real_onehot)
         return jaccard
 
+    def _check_num_possible_climbs(self):
+        for temp in [0.1, 0.3, 0.5, 0.7]:
+            climbs = set()
+            for _ in range(10):
+                climb = self.generate_from_string("p1387r14", 40, "7a", temp, 0.7)
+                onehot = self.tokenizer.onehot(climb)
+                climbs.add(tuple(onehot.tolist()))
+            self.log(f"test/temp={temp}_unqiue_climbs", len(climbs))
+            print(f"Temp={temp}, unique_climbs={len(climbs)}")
+
     def on_test_epoch_end(self):
         hist_spearman = self._get_hist_pearson()
         jaccard_similarity = self._get_jaccard_similarity()
+        self._check_num_possible_climbs()
         self.log_dict({"test/hist_spearman": hist_spearman, "test/jaccard_similarity": jaccard_similarity.mean()})
 
     def on_train_epoch_end(self):

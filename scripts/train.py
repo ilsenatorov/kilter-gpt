@@ -16,6 +16,7 @@ torch.set_float32_matmul_precision("medium")
 parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
 # dataset params
 parser.add_argument("--label_smoothing", type=str_to_bool, default=True, help="Multiple choices for middle holds")
+parser.add_argument("--subset", type=float, default=1.0, help="Fraction of datasets to take")
 # training params
 parser.add_argument("--batch_size", type=int, default=1024, help="Batch size")
 parser.add_argument("--epochs", type=int, default=500, help="Number of epochs")

@@ -19,6 +19,7 @@ class KilterDataModule(L.LightningDataModule):
         label_smoothing: bool = True,
         prompt_size: float = 0.2,
         min_tokens: int = 5,
+        subset: float = 1.0,
     ):
         super().__init__()
         if not isinstance(data_dir, Path):
@@ -31,34 +32,24 @@ class KilterDataModule(L.LightningDataModule):
         self.label_smoothing = label_smoothing
         self.prompt_size = prompt_size
         self.min_tokens = min_tokens
+        self.subset = subset
+
+    def _get_dataset(self, csv_filename: str) -> KilterDataset:
+        return KilterDataset(
+            self.data_dir / csv_filename,
+            self.tokenizer,
+            context_len=self.context_len,
+            label_smoothing=self.label_smoothing,
+            prompt_size=self.prompt_size,
+            min_tokens=self.min_tokens,
+            subset=self.subset,
+        )
 
     def setup(self, stage=None):
         self.tokenizer = Tokenizer()
-        self.train = KilterDataset(
-            self.data_dir / "train.csv",
-            self.tokenizer,
-            context_len=self.context_len,
-            label_smoothing=self.label_smoothing,
-            prompt_size=self.prompt_size,
-            min_tokens=self.min_tokens,
-        )
-
-        self.val = KilterDataset(
-            self.data_dir / "val.csv",
-            self.tokenizer,
-            context_len=self.context_len,
-            label_smoothing=self.label_smoothing,
-            prompt_size=self.prompt_size,
-            min_tokens=self.min_tokens,
-        )
-        self.test = KilterDataset(
-            self.data_dir / "test.csv",
-            self.tokenizer,
-            context_len=self.context_len,
-            label_smoothing=self.label_smoothing,
-            prompt_size=self.prompt_size,
-            min_tokens=self.min_tokens,
-        )
+        self.train = self._get_dataset("train.csv")
+        self.val = self._get_dataset("val.csv")
+        self.test = self._get_dataset("test.csv")
         self.test.eval = True
         self.vocab_size = self.tokenizer.vocab_size
 
