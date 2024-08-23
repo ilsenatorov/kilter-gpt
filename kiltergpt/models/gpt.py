@@ -159,7 +159,7 @@ class GPTModel(L.LightningModule):
         logits = self.model.forward(x)
         return logits
 
-    def shared_step(self, batch: list[torch.Tensor, torch.Tensor], name: str):
+    def shared_step(self, batch, name: str):
         text, target = batch
         logits = self.forward(text)
         loss = self.get_loss(logits, target)
@@ -173,58 +173,68 @@ class GPTModel(L.LightningModule):
         return self.shared_step(batch, "val")
 
     def on_test_epoch_start(self) -> None:
-        self.test_generated = []
-        self.test_real = []
+        self.test_generated = {0.1: [], 0.3: [], 0.5: [], 0.7: []}
+        self.test_real = {0.1: [], 0.3: [], 0.5: [], 0.7: []}
         return super().on_test_epoch_start()
 
     def test_step(self, batch, batch_idx):
         prompts, targets = batch
-        for prompt, target in zip(prompts, targets, strict=True):
-            generated = self.generate(prompt, 0.2, 0.7)
-            generated = generated[generated != self.tokenizer.pad_token_id]
-            target = target[target != self.tokenizer.pad_token_id]
-            self.test_generated.append(generated.detach().cpu())
-            self.test_real.append(target.detach().cpu())
+        for temp in self.test_generated.keys():
+            for prompt, target in zip(prompts, targets, strict=True):
+                generated = self.generate(prompt, temp, p=0.8)
+                generated = generated[generated != self.tokenizer.pad_token_id]
+                target = target[target != self.tokenizer.pad_token_id]
+                self.test_generated[temp].append(generated.detach().cpu())
+                self.test_real[temp].append(target.detach().cpu())
 
-    def _get_hist_pearson(self):
+    def _get_hist_pearson(self, generated, real):
         """Calculate the spearman correlation between token distributions of real and genenerated sequences"""
-        hist_generated = get_histogram(self.test_generated, self.tokenizer.vocab_size)
-        hist_real = get_histogram(self.test_real, self.tokenizer.vocab_size)
+        hist_generated = get_histogram(generated, self.tokenizer.vocab_size)
+        hist_real = get_histogram(real, self.tokenizer.vocab_size)
         hist_spearman = M.spearman_corrcoef(hist_generated, hist_real)
         return hist_spearman
 
-    def _get_jaccard_similarity(self):
-        generated_onehot = torch.stack([self.tokenizer.onehot(x) for x in self.test_generated])
-        real_onehot = torch.stack([self.tokenizer.onehot(x) for x in self.test_real])
+    def _get_jaccard_similarity(self, generated, real):
+        generated_onehot = torch.stack([self.tokenizer.onehot(x) for x in generated])
+        real_onehot = torch.stack([self.tokenizer.onehot(x) for x in real])
         jaccard = jaccard_similarity(generated_onehot, real_onehot)
         return jaccard
 
-    def _check_num_possible_climbs(self):
-        n_runs = len(self.test_generated // self.config.batch_size)
-        for temp in [0.1, 0.3, 0.5, 0.7]:
-            climbs = set()
-            for _ in range(n_runs):
-                climb = self.generate_from_string("p1387r14", 40, "7a", temp, 0.7)
-                onehot = self.tokenizer.onehot(climb)
-                climbs.add(tuple(onehot.tolist()))
-            self.log(f"test/temp={temp}_unqiue_climbs_frac", len(climbs) / n_runs)
+    def _get_num_possible_climbs(self, temp: float):
+        n_runs = 40
+        climbs = set()
+        for _ in range(n_runs):
+            climb = self.generate_from_string("p1387r14", 40, "7a", temp, 0.7)
+            onehot = self.tokenizer.onehot(climb)
+            climbs.add(tuple(onehot.tolist()))
+        return len(climbs) / n_runs
 
     def on_test_epoch_end(self):
-        hist_spearman = self._get_hist_pearson()
-        jaccard_similarity = self._get_jaccard_similarity()
-        self._check_num_possible_climbs()
-        self.log_dict({"test/hist_spearman": hist_spearman, "test/jaccard_similarity": jaccard_similarity.mean()})
+        for temp in self.test_generated.keys():
+            prefix = f"test/temp={temp}"
+            hist_spearman = self._get_hist_pearson(self.test_generated[temp], self.test_real[temp])
+            jaccard_similarity = self._get_jaccard_similarity(self.test_generated[temp], self.test_real[temp])
+            num_possible_climbs = self._get_num_possible_climbs(temp)
+            self.log_dict(
+                {
+                    f"{prefix}/hist_spearman": hist_spearman,
+                    f"{prefix}/jaccard_similarity": jaccard_similarity.mean(),
+                    f"{prefix}/num_possible_climbs": num_possible_climbs,
+                }
+            )
 
     def on_train_epoch_end(self):
         plotter = Plotter()
         finish_hold = "p1387"
         setup = [(30, "6a"), (40, "7a"), (50, "8a")]
         for temp in [0.1, 0.3, 0.5, 0.7]:
-            for p in [0.7, 1.0]:
-                route_frames = [self.generate_from_string(f"{finish_hold}r14", angle, grade) for angle, grade in setup]
-                route_images = [plotter.plot_climb(x, highlight=finish_hold) for x in route_frames]
-                captions = [f"{grade} @ {angle}, temp={temp}, p={p}" for angle, grade in setup]
-                self.logger.log_image(key=f"image/temp={temp}/p={p}", images=route_images, caption=captions)
+            route_frames = [
+                self.generate_from_string(f"{finish_hold}r14", angle, grade, temperature=temp, p=0.8)
+                for angle, grade in setup
+            ]
+            route_images = [plotter.plot_climb(x, highlight=finish_hold) for x in route_frames]
+            captions = [f"{grade} @ {angle}, temp={temp}" for angle, grade in setup]
+            self.logger.log_image(key=f"test/temp={temp}/images", images=route_images, caption=captions)
         return super().on_train_epoch_end()
 
     def configure_optimizers(self):
@@ -319,7 +329,7 @@ class GPTModel(L.LightningModule):
         angle: int,
         grade: str,
         temperature: float = 0.2,
-        p: float = 0.7,
+        p: float = 0.8,
     ) -> str:
         """Generate a climb from a string of frames, angle, and grade"""
         tokenized = self.tokenizer.encode(frames, angle, grade, pad=self.config.context_len, eos=False).to(self.device)
