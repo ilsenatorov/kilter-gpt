@@ -31,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Reverted to randomised dataset sampling.
 - Renamed `KilterGPTDataset` to `KilterDataset`
 - No padding needed now!
+- Moved training loop logic to a separate file.
 
 ### Removed
 

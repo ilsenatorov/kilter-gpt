@@ -1,17 +1,7 @@
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
 
-import lightning as L
-import torch
-from lightning.pytorch import Trainer
-from lightning.pytorch.loggers import WandbLogger
-
-from kiltergpt.data.datamodules import KilterDataModule
-from kiltergpt.models.gpt import GPTModel
+from kiltergpt.train import train
 from kiltergpt.utils import str_to_bool
-
-L.seed_everything(42)
-torch.set_float32_matmul_precision("medium")
-
 
 parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
 # dataset params
@@ -32,27 +22,4 @@ parser.add_argument("--bias", type=str_to_bool, default=False, help="Use bias in
 parser.add_argument("--context_len", type=int, default=64, help="Context length")
 config = parser.parse_args()
 
-dm = KilterDataModule(
-    batch_size=config.batch_size,
-    subset=config.subset,
-    num_workers=config.num_workers,
-)
-dm.setup()
-
-config.vocab_size = dm.vocab_size
-config.total_steps = len(dm.train_dataloader()) * config.epochs
-model = GPTModel(config, dm.tokenizer)
-
-trainer = Trainer(
-    max_epochs=config.epochs,
-    logger=[WandbLogger(project="kilter-gpt", config=config, log_model=True)],
-    precision=config.precision,
-    callbacks=[
-        L.pytorch.callbacks.EarlyStopping(monitor="val/loss", patience=20),
-        L.pytorch.callbacks.ModelCheckpoint(monitor="val/loss", mode="min"),
-        L.pytorch.callbacks.LearningRateMonitor(logging_interval="step"),
-    ],
-)
-
-trainer.fit(model, datamodule=dm)
-trainer.test(model, datamodule=dm)
+train(config)
