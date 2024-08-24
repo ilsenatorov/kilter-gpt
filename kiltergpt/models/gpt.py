@@ -149,6 +149,7 @@ class GPTModel(L.LightningModule):
         self.tokenizer = tokenizer
         self.model = GPT(self.config)
 
+    # TODO add tests
     def get_loss(self, logits, targets):
         B, C, V = logits.shape
         logits = logits.view(B * C, V)
@@ -164,6 +165,7 @@ class GPTModel(L.LightningModule):
         logits = self.model.forward(x)
         return logits
 
+    # TODO add tests
     def shared_step(self, batch: list[torch.Tensor, torch.Tensor], name: str):
         text, target = batch
         logits = self.forward(text)
@@ -220,6 +222,7 @@ class GPTModel(L.LightningModule):
         self._check_num_possible_climbs()
         self.log_dict({"test/hist_spearman": hist_spearman, "test/jaccard_similarity": jaccard_similarity.mean()})
 
+    # TODO add tests
     def on_train_epoch_end(self):
         plotter = Plotter()
         finish_hold = "p1387"
@@ -232,6 +235,7 @@ class GPTModel(L.LightningModule):
                 self.logger.log_image(key=f"image/temp={temp}/p={p}", images=route_images, caption=captions)
         return super().on_train_epoch_end()
 
+    # TODO add tests
     def configure_optimizers(self):
         param_dict = {pn: p for pn, p in self.named_parameters()}
         param_dict = {pn: p for pn, p in param_dict.items() if p.requires_grad}
