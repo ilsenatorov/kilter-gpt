@@ -63,7 +63,7 @@ class KilterDataModule(L.LightningDataModule):
         )
 
     def train_dataloader(self) -> DataLoader:
-        return self._get_dataloader(self.train, shuffle=True)
+        return self._get_dataloader(self.train, shuffle=False)
 
     def val_dataloader(self) -> DataLoader:
         return self._get_dataloader(self.val)

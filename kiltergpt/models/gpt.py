@@ -167,6 +167,7 @@ class GPTModel(L.LightningModule):
 
     def shared_step(self, batch, name: str):
         text, target = batch
+        print(text.shape)
         logits = self.forward(text)
         loss = self.get_loss(logits, target)
         self.log(f"{name}/loss", loss)
@@ -229,6 +230,13 @@ class GPTModel(L.LightningModule):
                     f"{prefix}/num_possible_climbs": num_possible_climbs,
                 }
             )
+
+    def on_train_epoch_start(self):
+        try:
+            self.trainer.datamodule.train.sorted_shuffle()
+        except Exception as e:
+            pass
+        return super().on_train_epoch_start()
 
     # TODO add tests
     def on_train_epoch_end(self):
