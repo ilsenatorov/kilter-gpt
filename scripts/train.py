@@ -29,6 +29,7 @@ parser.add_argument("--n_layer", type=int, default=8, help="Number of transforme
 parser.add_argument("--n_embed", type=int, default=512, help="Embedding dimension")
 parser.add_argument("--dropout", type=float, default=0.2, help="Dropout")
 parser.add_argument("--bias", type=str_to_bool, default=False, help="Use bias in attention layers")
+parser.add_argument("--context_len", type=int, default=64, help="Context length")
 config = parser.parse_args()
 
 dm = KilterDataModule(
