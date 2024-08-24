@@ -59,4 +59,4 @@ By defauly it's generated from the `python scripts/preprocess.py` script.
 - Write BERT-like model for clustering
 - Use hold positions as extra information
 - Use hand-crafted hold descriptors (pinch/jug/sloper/whatever)
--
+- Try performer or other linear attention mechanisms
