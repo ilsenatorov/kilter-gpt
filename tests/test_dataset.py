@@ -24,7 +24,7 @@ def dataset_dir(tmp_path):
 
 @pytest.fixture
 def dataset(dataset_dir):
-    return KilterDataset(dataset_dir / "train.csv", Tokenizer(), context_len=64)
+    return KilterDataset(dataset_dir / "train.csv", Tokenizer())
 
 
 def test_dataset_length(dataset):
@@ -33,26 +33,15 @@ def test_dataset_length(dataset):
 
 def test_data_generation_consistency(dataset):
     x, y = dataset[0]
-    assert x.size(0) == dataset.context_len
-    assert y.size(0) == dataset.context_len
+    assert x.size(0) == y.size(0)
+    assert (x[1:] == y[:-1]).all()
 
 
 def test_evaluation_mode(dataset):
     dataset.eval = True
     x, y = dataset[0]
-    assert x.size(0) == dataset.context_len
-    assert y.size(0) == dataset.context_len
-
-
-def test_label_smoothing(dataset):
-    dataset.label_smoothing = True
-    _, y = dataset[0]
-    assert y.size(0) == dataset.context_len
-    assert y.size(1) == dataset.tokenizer.vocab_size
-    assert y.dtype == torch.float32
-    # FIXME fix this test part
-    # nopad = y[y != dataset.tokenizer.pad_token_id]
-    # assert (nopad[torch.isin(nopad, dataset.tokenizer.hold_token_ids())][:-1] > 1).all()
+    # assert that all of x is in y
+    assert (x == y[: x.size(0)]).all()
 
 
 def test_datamodule(dataset_dir):

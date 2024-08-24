@@ -31,12 +31,11 @@ def test_tokenizer_encode():
     assert encoded.size(0) == 4
 
 
-def test_tokenizer_encode_padding():
-    """Ensures padding works correctly to a desired length."""
+def test_tokenizer_encode():
     tokenizer = Tokenizer()
-    encoded = tokenizer.encode("p1100r12", 10, "7a", pad=64)
-    assert encoded.size(0) == 64
-    assert torch.all(encoded[:-6] == tokenizer.pad_token_id)  # Check padding tokens
+    encoded = tokenizer.encode("p1100r12", 10, "7a")
+    # 6 tokens: [BOS], [angle], [grade], p1100, r12, [EOS]
+    assert encoded.size(0) == 6
 
 
 def test_tokenizer_decode():

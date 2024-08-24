@@ -15,28 +15,24 @@ torch.set_float32_matmul_precision("medium")
 
 parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
 # dataset params
-parser.add_argument("--label_smoothing", type=str_to_bool, default=True, help="Multiple choices for middle holds")
 parser.add_argument("--subset", type=float, default=1.0, help="Fraction of datasets to take")
 parser.add_argument("--num_workers", type=int, default=0, help="Number of workers for dataloader")
-# training params
 parser.add_argument("--batch_size", type=int, default=1024, help="Batch size")
+# training params
 parser.add_argument("--epochs", type=int, default=500, help="Number of epochs")
 parser.add_argument("--lr", type=float, default=6e-4, help="Max learning rate")
 parser.add_argument("--wd", type=float, default=1e-1, help="Weight decay")
+parser.add_argument("--precision", type=str, default="bf16-mixed", help="Training precision")
 # model params
 parser.add_argument("--n_head", type=int, default=8, help="Number of attention heads")
 parser.add_argument("--n_layer", type=int, default=8, help="Number of transformer layers")
 parser.add_argument("--n_embed", type=int, default=512, help="Embedding dimension")
-parser.add_argument("--context_len", type=int, default=64, help="Context length")
 parser.add_argument("--dropout", type=float, default=0.2, help="Dropout")
 parser.add_argument("--bias", type=str_to_bool, default=False, help="Use bias in attention layers")
-parser.add_argument("--precision", type=str, default="bf16-mixed", help="Training precision")
 config = parser.parse_args()
 
 dm = KilterDataModule(
     batch_size=config.batch_size,
-    context_len=config.context_len,
-    label_smoothing=config.label_smoothing,
     subset=config.subset,
     num_workers=config.num_workers,
 )

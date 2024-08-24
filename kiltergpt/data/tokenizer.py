@@ -20,25 +20,6 @@ def sort_holds(climb: str) -> str:
     return "".join(["p" + x.strip() for x in holds])
 
 
-def pad_to(
-    tensor: torch.Tensor,
-    size: int,
-    pad_value: int = 0,
-    where: Literal["left", "right"] = "left",
-) -> torch.Tensor:
-    """Pad tensor to a specific size"""
-    if where == "left":
-        left_pad = size - tensor.size(0)
-        right_pad = 0
-    elif where == "right":
-        left_pad = 0
-        right_pad = size - tensor.size(0)
-    pad = [left_pad, right_pad]
-    if tensor.dim() == 2:
-        pad = (0, 0, left_pad, right_pad)
-    return torch.nn.functional.pad(tensor, pad, value=pad_value)
-
-
 class Tokenizer:
     def __init__(self):
         self.encode_map: dict[str, int] = dict()
@@ -210,7 +191,6 @@ class Tokenizer:
         shuffle: bool = False,
         bos: bool = True,
         eos: bool = True,
-        pad: int = 0,
     ) -> torch.Tensor:
         assert all(x in "0123456789pr" for x in frames), "Frames should only contain p, r and digits"
         tokens = []
@@ -226,8 +206,6 @@ class Tokenizer:
         if eos:
             tokens.append(self.eos_token)
         t = torch.tensor([self.encode_map.get(x, self.unk_token_id) for x in tokens], dtype=torch.long)
-        if pad:
-            t = self.pad(t, pad)
         return t
 
     def onehot(self, frames: str | torch.Tensor) -> torch.Tensor:
@@ -275,9 +253,6 @@ class Tokenizer:
             elif i.startswith("p") or i.startswith("r"):
                 frames += i
         return frames, angle, grade
-
-    def pad(self, x: torch.Tensor, size: int, where: Literal["left", "right"] = "left"):
-        return pad_to(x, size, self.encode_map[self.pad_token], where=where)
 
     def __repr__(self):
         return f"Tokenizer, tokens:{len(self.encode_map)}, hold:{len(self.hold_tokens())}, angle:{len(self.angle_tokens())}, grade:{len(self.grade_tokens())}"

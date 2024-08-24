@@ -2,6 +2,8 @@ from pathlib import Path
 
 import lightning as L
 import pandas as pd
+import torch
+from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader
 
 from .datasets import KilterDataset
@@ -15,10 +17,7 @@ class KilterDataModule(L.LightningDataModule):
         batch_size: int = 64,
         num_workers: int = 0,
         pin_memory: bool = True,
-        context_len: int = 64,
-        label_smoothing: bool = True,
         prompt_size: float = 0.2,
-        min_tokens: int = 5,
         subset: float = 1.0,
     ):
         super().__init__()
@@ -28,22 +27,22 @@ class KilterDataModule(L.LightningDataModule):
         self.batch_size = batch_size
         self.num_workers = num_workers
         self.pin_memory = pin_memory
-        self.context_len = context_len
-        self.label_smoothing = label_smoothing
         self.prompt_size = prompt_size
-        self.min_tokens = min_tokens
         self.subset = subset
 
     def _get_dataset(self, csv_filename: str) -> KilterDataset:
         return KilterDataset(
             self.data_dir / csv_filename,
             self.tokenizer,
-            context_len=self.context_len,
-            label_smoothing=self.label_smoothing,
             prompt_size=self.prompt_size,
-            min_tokens=self.min_tokens,
             subset=self.subset,
         )
+
+    def collate_fn(self, batch: list[tuple[torch.Tensor, torch.Tensor]]) -> tuple[torch.Tensor, torch.Tensor]:
+        x, y = zip(*batch, strict=True)
+        x = pad_sequence(x, batch_first=True, padding_value=self.tokenizer.pad_token_id)
+        y = pad_sequence(y, batch_first=True, padding_value=self.tokenizer.pad_token_id)
+        return x, y
 
     def setup(self, stage=None):
         self.tokenizer = Tokenizer()
@@ -60,6 +59,7 @@ class KilterDataModule(L.LightningDataModule):
             shuffle=shuffle,
             pin_memory=True,
             num_workers=self.num_workers,
+            collate_fn=self.collate_fn,
         )
 
     def train_dataloader(self) -> DataLoader:

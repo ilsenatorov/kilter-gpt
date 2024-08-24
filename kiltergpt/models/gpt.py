@@ -188,8 +188,6 @@ class GPTModel(L.LightningModule):
         for temp in self.test_generated.keys():
             for prompt, target in zip(prompts, targets, strict=True):
                 generated = self.generate(prompt, temp, p=0.8)
-                generated = generated[generated != self.tokenizer.pad_token_id]
-                target = target[target != self.tokenizer.pad_token_id]
                 self.test_generated[temp].append(generated.detach().cpu())
                 self.test_real[temp].append(target.detach().cpu())
 
@@ -292,7 +290,7 @@ class GPTModel(L.LightningModule):
 
     def _generate_token(self, prompt: torch.Tensor, temperature: float = 0.2, p: float = 1.0) -> torch.Tensor:
         """Generate a single token
-        prompt: torch.LongTensor: A left-padded tensor of token ids
+        prompt: torch.LongTensor: input_ids
         """
         # TODO additionally check the number of start and finish tokens
         last_token = prompt[-1]
@@ -327,7 +325,7 @@ class GPTModel(L.LightningModule):
             next_prompt = self._generate_token(context, temperature, p)
             prompt = torch.cat((prompt, next_prompt), dim=0)
             # Stop when you get to full context window (30 holds)
-            if prompt[prompt != self.tokenizer.pad_token_id].size(0) >= self.config.context_len - 1:
+            if prompt.size(0) >= self.config.context_len - 1:
                 prompt = torch.cat(
                     (prompt, torch.tensor(self.tokenizer.eos_token_id, device=self.device).unsqueeze(0)), dim=0
                 )
@@ -343,7 +341,7 @@ class GPTModel(L.LightningModule):
         p: float = 0.8,
     ) -> str:
         """Generate a climb from a string of frames, angle, and grade"""
-        tokenized = self.tokenizer.encode(frames, angle, grade, pad=self.config.context_len, eos=False).to(self.device)
+        tokenized = self.tokenizer.encode(frames, angle, grade, eos=False).to(self.device)
         generated = self.generate(tokenized, temperature, p)
         return self.tokenizer.decode(generated, clean=True)[0]
 

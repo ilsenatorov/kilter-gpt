@@ -29,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed tokens from 12x14 kilterboard from the dataset.
 - Reverted to randomised dataset sampling.
 - Renamed `KilterGPTDataset` to `KilterDataset`
+- No padding needed now!
 
 ### Removed
 

@@ -34,12 +34,11 @@ def test_forward_pass(sample_config):
         "p1234r12p1345r13p1423r14p1243r15",
         40,
         "7a",
-        pad=sample_config.context_len,
         shuffle=True,
     )
     sample_batch = sample_input.unsqueeze(0).repeat(2, 1)
     output = model(sample_batch)
-    assert output.shape == (2, 64, sample_config.vocab_size)
+    assert output.shape == (2, sample_input.size(0), sample_config.vocab_size)
 
 
 def test_generate(sample_config):
@@ -58,7 +57,6 @@ def test_test_step(sample_config):
         "p1234r12p1345r13p1423r14p1243r15",
         40,
         "7a",
-        pad=sample_config.context_len,
         shuffle=True,
         eos=False,
     )
