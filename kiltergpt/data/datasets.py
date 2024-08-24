@@ -64,7 +64,6 @@ class KilterDataset(Dataset):
         return x, y
 
     def sorted_shuffle(self):
-        print("Shuffling")
         self.df = self.df.sample(frac=1).reset_index(drop=True)
         self.df = self.df.sort_values(by="length", ascending=True).reset_index(drop=True)
 

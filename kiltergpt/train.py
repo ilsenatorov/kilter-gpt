@@ -1,5 +1,3 @@
-from argparse import Namespace
-
 import lightning.pytorch as L
 import torch
 
@@ -7,7 +5,7 @@ from .data import KilterDataModule
 from .models import GPTModel
 
 
-def train(config: Namespace):
+def train(config):
     L.seed_everything(42)
     torch.set_float32_matmul_precision("high")
     dm = KilterDataModule(

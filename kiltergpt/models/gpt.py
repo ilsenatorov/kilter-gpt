@@ -162,7 +162,6 @@ class GPTModel(L.LightningModule):
 
     def shared_step(self, batch, name: str):
         text, target = batch
-        print(text.shape)
         logits = self.forward(text)
         loss = self.get_loss(logits, target)
         self.log(f"{name}/loss", loss)
