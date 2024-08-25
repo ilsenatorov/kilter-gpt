@@ -7,23 +7,30 @@ parameters:
   num_workers:
     value: 15
   epochs:
-    value: 500
+    value: 300
   precision:
     value: bf16-mixed
   subset:
     value: 1.0
-  batch_size:
-    value: 512
+  max_num_tokens:
+    value: 20000
   context_len:
     value: 64
+  only_train:
+    value: true
   bias:
     values: [true, false]
     distribution: categorical
   dropout:
-    values: [0.1, 0.2, 0.3, 0.4, 0.5]
-    distribution: categorical
+    min: 0.0
+    max: 0.5
+    distribution: uniform
   lr:
     max: 0.001
+    min: 0.00001
+    distribution: log_uniform_values
+  wd:
+    max: 0.1
     min: 0.0001
     distribution: log_uniform_values
   n_embed:
@@ -34,9 +41,9 @@ parameters:
   n_head:
     values: [1, 2, 4, 8, 16]
   n_layer:
-    max: 12
-    min: 4
+    max: 16
+    min: 2
     distribution: int_uniform
 early_terminate:
   type: hyperband
-  min_iter: 20
+  min_iter: 30

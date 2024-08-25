@@ -22,16 +22,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added image logging at the end of each epoch.
 - Set limit on the number of start and finish holds to 2 during generation.
 - Set limit to 30 holds (64 tokens) during generation.
-- Added batched shuffling
-- Sample sweep configuration
-- Added `DynamicBatchSampler` for dynamic batch sampling
-
+- Added batched shuffling.
+- Sample sweep configuration.
+- Added `DynamicBatchSampler` for dynamic batch sampling.
+- Added only_train flag to train.py that skips testing.
 ### Changed
 
 - Changed `utils.py` to `utils/` and created own files for each different utils.
 - Removed tokens from 12x14 kilterboard from the dataset.
 - Reverted to randomised dataset sampling.
-- Renamed `KilterGPTDataset` to `KilterDataset`
+- Renamed `KilterGPTDataset` to `KilterDataset`.
 - No padding needed now!
 - Moved training loop logic to a separate file.
 

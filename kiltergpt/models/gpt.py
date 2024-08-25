@@ -211,7 +211,7 @@ class GPTModel(L.LightningModule):
             climbs.add(tuple(onehot.tolist()))
         return len(climbs) / n_runs
 
-    def on_test_epoch_end(self):
+    def on_test_epoch_end(self) -> None:
         for temp in self.test_generated.keys():
             prefix = f"test/temp={temp}"
             hist_spearman = self._get_hist_pearson(self.test_generated[temp], self.test_real[temp])
@@ -227,6 +227,8 @@ class GPTModel(L.LightningModule):
 
     # TODO add tests
     def on_train_epoch_end(self):
+        if self.config.only_train:
+            return super().on_train_epoch_end()
         plotter = Plotter()
         finish_hold = "p1387"
         setup = [(30, "6a"), (40, "7a"), (50, "8a")]

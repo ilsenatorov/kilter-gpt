@@ -13,7 +13,7 @@ parser.add_argument("--min_ascents", type=int, default=1, help="Minimum number o
 parser.add_argument("--min_quality", type=int, default=2, help="Minimum quality")
 parser.add_argument("--min_holds", type=int, default=4, help="Minimum number of holds")
 parser.add_argument("--max_holds", type=int, default=28, help="Maximum number of holds")
-parser.add_argument("--data_split", type=float, nargs=3, default=[0.95, 0.04, 0.01], help="How to split the data")
+parser.add_argument("--data_split", type=float, nargs=3, default=[0.9, 0.09, 0.01], help="How to split the data")
 args = parser.parse_args()
 
 assert sum(args.data_split) == 1, "Data split fractions must sum to 1."

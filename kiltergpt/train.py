@@ -10,6 +10,7 @@ def train(config):
     torch.set_float32_matmul_precision("high")
     dm = KilterDataModule(
         batch_size=config.batch_size,
+        max_num_tokens=config.max_num_tokens,
         subset=config.subset,
         num_workers=config.num_workers,
     )
@@ -31,4 +32,5 @@ def train(config):
     )
 
     trainer.fit(model, datamodule=dm)
-    trainer.test(model, datamodule=dm)
+    if not config.only_train:
+        trainer.test(model, datamodule=dm)
