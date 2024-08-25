@@ -7,14 +7,29 @@ from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader
 
 from .datasets import KilterDataset
+from .samplers import DynamicBatchSampler
 from .tokenizer import Tokenizer
 
 
 class KilterDataModule(L.LightningDataModule):
+    """Lightning DataModule for KilterGPT. Assumes that the data folder contains train.csv, val.csv, and test.csv.
+
+    Args:
+
+        data_dir (str | Path): Path to the data directory. Has to contain train.csv, val.csv, and test.csv.
+        batch_size (int): Batch size to use.
+        max_num_tokens (int, optional): If not None, uses DynamicBatchSampler to create batches with a maximum number of tokens.
+        num_workers (int): Number of workers to use for loading data.
+        pin_memory (bool): Whether to pin memory in DataLoader.
+        prompt_size (float): Fraction of the sequence to use as prompt. Only used if the dataset is set to evaluation mode.
+        subset (float): Fraction of the dataset to use. Useful for debugging.
+    """
+
     def __init__(
         self,
         data_dir: str | Path = Path("data") / "processed",
         batch_size: int = 64,
+        max_num_tokens: int | None = None,
         num_workers: int = 0,
         pin_memory: bool = True,
         prompt_size: float = 0.2,
@@ -25,6 +40,7 @@ class KilterDataModule(L.LightningDataModule):
             data_dir = Path(data_dir)
         self.data_dir = data_dir
         self.batch_size = batch_size
+        self.max_num_tokens = max_num_tokens
         self.num_workers = num_workers
         self.pin_memory = pin_memory
         self.prompt_size = prompt_size
@@ -53,10 +69,18 @@ class KilterDataModule(L.LightningDataModule):
         self.vocab_size = self.tokenizer.vocab_size
 
     def _get_dataloader(self, dataset, shuffle: bool = False) -> DataLoader:
+        if self.max_num_tokens is None:
+            return DataLoader(
+                dataset,
+                batch_size=self.batch_size,
+                shuffle=shuffle,
+                pin_memory=True,
+                num_workers=self.num_workers,
+                collate_fn=self.collate_fn,
+            )
         return DataLoader(
             dataset,
-            batch_size=self.batch_size,
-            shuffle=shuffle,
+            batch_sampler=DynamicBatchSampler(dataset, self.max_num_tokens, shuffle=shuffle),
             pin_memory=True,
             num_workers=self.num_workers,
             collate_fn=self.collate_fn,

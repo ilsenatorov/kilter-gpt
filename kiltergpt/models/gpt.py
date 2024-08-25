@@ -225,13 +225,6 @@ class GPTModel(L.LightningModule):
                 }
             )
 
-    def on_train_epoch_start(self):
-        try:
-            self.trainer.datamodule.train.sorted_shuffle()
-        except Exception as e:
-            pass
-        return super().on_train_epoch_start()
-
     # TODO add tests
     def on_train_epoch_end(self):
         plotter = Plotter()
