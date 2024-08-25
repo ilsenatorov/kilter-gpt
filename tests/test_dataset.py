@@ -4,6 +4,7 @@ import torch
 
 from kiltergpt.data.datamodules import KilterDataModule
 from kiltergpt.data.datasets import KilterDataset
+from kiltergpt.data.samplers import DynamicBatchSampler
 from kiltergpt.data.tokenizer import Tokenizer
 
 
@@ -52,3 +53,14 @@ def test_datamodule(dataset_dir):
     assert datamodule.train.eval is False
     assert datamodule.val.eval is False
     assert datamodule.test.eval is True
+
+
+def test_batch_sampler(dataset):
+    sampler = DynamicBatchSampler(dataset, 100)
+    for batch in sampler:
+        assert sum(dataset.df.length[idx] for idx in batch) <= 100
+    assert len(sampler) == 1
+    sampler = DynamicBatchSampler(dataset, 13)
+    for batch in sampler:
+        assert sum(dataset.df.length[idx] for idx in batch) <= 13
+    assert len(sampler) == 2

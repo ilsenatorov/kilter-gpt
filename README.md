@@ -34,6 +34,7 @@ By defauly it's generated from the `python scripts/preprocess.py` script.
 - Visualize the attention matrix
 - Check the block logic
 - Add perplexity
+- Added batch sampling based on number of tokens
 - ~~Write better tests~~
 - ~~Improve the CI/CD side of things~~
 - ~~Add some automatic evaluation metrics (similarity to real data, consistency, etc.)~~
