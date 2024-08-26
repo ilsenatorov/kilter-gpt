@@ -23,7 +23,7 @@ class KilterDataset(Dataset):
         assert 0 < subset <= 1, f"Subset must be between 0 and 1, got {subset}"
         self.df = pd.read_csv(filename).sample(frac=subset)
         self.df["length"] = self.df["frames"].apply(lambda x: len(x) // 4 + 4)
-        self.sorted_shuffle()
+        self.bucket_shuffle()
         self.tokenizer = tokenizer
         self.smooth_labels = smooth_labels
         self.shuffle_tokens = shuffle_tokens
@@ -76,9 +76,21 @@ class KilterDataset(Dataset):
             smooth_y[hold_positions[i], holds[i:]] = 1
         return smooth_y
 
-    def sorted_shuffle(self):
+    def shuffle(self):
+        """Just shuffle the dataframe"""
         self.df = self.df.sample(frac=1).reset_index(drop=True)
+
+    def len_sort(self):
+        """Sort the dataframe by length of frames"""
         self.df = self.df.sort_values(by="length", ascending=True).reset_index(drop=True)
+
+    def bucket_shuffle(self):
+        """Shuffle the bucket order and within the buckets.
+        A bucket is all sequences of the same length."""
+        self.shuffle()
+        self.df = pd.concat(
+            [group.sample(frac=1) for _, group in self.df.sample(frac=1).groupby("length", sort=False)]
+        )
 
     def __repr__(self):
         return f"KilterDataset of length {self.__len__()}"

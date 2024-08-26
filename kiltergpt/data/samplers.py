@@ -1,4 +1,5 @@
 import math
+from typing import Iterable
 
 from torch.utils.data.sampler import BatchSampler
 
@@ -11,9 +12,9 @@ class DynamicBatchSampler(BatchSampler):
         self.max_num_tokens = max_num_tokens
         self.shuffle = shuffle
 
-    def __iter__(self):
+    def __iter__(self) -> Iterable[list[int]]:
         if self.shuffle:
-            self.dataset.sorted_shuffle()
+            self.dataset.bucket_shuffle()
         batch = []
         num_tokens = 0
         for idx in range(len(self.dataset)):

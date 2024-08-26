@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added batched shuffling.
 - Sample sweep configuration.
 - Added `DynamicBatchSampler` for dynamic batch sampling.
+- Added bucket shuffling to `DynamicBatchSampler`.
 - Added only_train flag to train.py that skips testing.
 - Added label smoothing to option.
 
