@@ -28,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added bucket shuffling to `DynamicBatchSampler`.
 - Added only_train flag to train.py that skips testing.
 - Added label smoothing to option.
+- Added gradient clipping
 
 ### Changed
 
@@ -39,6 +40,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Moved training loop logic to a separate file.
 
 ### Removed
+
+- Removed fused optimizer
 
 ### Fixed
 

@@ -26,10 +26,12 @@ def train(config):
         logger=[L.loggers.WandbLogger(project="kilter-gpt", config=config, log_model=True)],
         precision=config.precision,
         callbacks=[
-            L.callbacks.EarlyStopping(monitor="val/loss", patience=20),
+            L.callbacks.EarlyStopping(monitor="val/loss", patience=40),
             L.callbacks.ModelCheckpoint(monitor="val/loss", mode="min"),
             L.callbacks.LearningRateMonitor(logging_interval="step"),
         ],
+        gradient_clip_algorithm="value",
+        gradient_clip_val=1.0,
     )
 
     trainer.fit(model, datamodule=dm)

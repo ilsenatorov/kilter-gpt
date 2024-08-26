@@ -249,15 +249,12 @@ class GPTModel(L.LightningModule):
 
     # TODO add tests
     def configure_optimizers(self):
-        param_dict = {pn: p for pn, p in self.named_parameters()}
-        param_dict = {pn: p for pn, p in param_dict.items() if p.requires_grad}
-        decay_params = [p for n, p in param_dict.items() if p.dim() >= 2]
-        nodecay_params = [p for n, p in param_dict.items() if p.dim() < 2]
-        optim_groups = [
-            {"params": decay_params, "weight_decay": self.config.wd},
-            {"params": nodecay_params, "weight_decay": 0.0},
-        ]
-        optimizer = torch.optim.AdamW(optim_groups, lr=self.config.lr, betas=(0.9, 0.95), fused=True)
+        optimizer = torch.optim.AdamW(
+            self.parameters(),
+            lr=self.config.lr,
+            weight_decay=self.config.wd,
+            betas=(0.9, 0.95),
+        )
         scheduler = WarmupCosineSchedule(
             optimizer,
             self.config.total_steps // 10,
