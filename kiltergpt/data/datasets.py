@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pandas as pd
 import torch
+import torch.nn.functional as F
 from torch.utils.data import Dataset
 
 from .tokenizer import Tokenizer
@@ -14,6 +15,7 @@ class KilterDataset(Dataset):
         filename: str | Path,
         tokenizer: Tokenizer,
         *,
+        smooth_labels: bool = False,
         shuffle_tokens: bool = True,
         prompt_size: float = 0.2,
         subset: float = 1.0,
@@ -23,6 +25,7 @@ class KilterDataset(Dataset):
         self.df["length"] = self.df["frames"].apply(lambda x: len(x) // 4 + 4)
         self.sorted_shuffle()
         self.tokenizer = tokenizer
+        self.smooth_labels = smooth_labels
         self.shuffle_tokens = shuffle_tokens
         self.prompt_size = prompt_size
         self.eval = False
@@ -61,7 +64,17 @@ class KilterDataset(Dataset):
         )
         x = tokenized[:-1]
         y = tokenized[1:]
+        if self.smooth_labels:
+            y = self.smooth_y(tokenized[1:])
         return x, y
+
+    def smooth_y(self, y: torch.Tensor) -> torch.Tensor:
+        smooth_y = F.one_hot(y, num_classes=self.tokenizer.vocab_size).to(torch.float32)
+        hold_positions = torch.arange(2, y.size(0) - 1, 2)
+        holds = y[hold_positions]
+        for i in range(len(holds)):
+            smooth_y[hold_positions[i], holds[i:]] = 1
+        return smooth_y
 
     def sorted_shuffle(self):
         self.df = self.df.sample(frac=1).reset_index(drop=True)
