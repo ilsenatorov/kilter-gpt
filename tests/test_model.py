@@ -46,7 +46,7 @@ def test_generate(sample_config):
     model = GPTModel(sample_config, tokenizer)
     sample_prompt = "p1234r12"
     generated = model.generate_from_string(sample_prompt, 40, "7a")
-    # FIXME add sensible asserts
+    assert sample_prompt in generated
 
 
 def test_test_step(sample_config):
