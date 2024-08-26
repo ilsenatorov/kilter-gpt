@@ -153,8 +153,13 @@ class GPTModel(L.LightningModule):
     def get_loss(self, logits, targets):
         B, C, V = logits.shape
         logits = logits.view(B * C, V)
-        targets = targets.view(B * C)
-        return F.cross_entropy(logits, targets, ignore_index=self.tokenizer.pad_token_id)
+        if len(targets.size()) == 2:  # If targets are class labels
+            targets = targets.view(B * C)
+            loss = F.cross_entropy(logits, targets, ignore_index=self.tokenizer.pad_token_id)
+        else:  # if targets are class probabilities
+            targets = targets.view(B * C, V)
+            loss = F.binary_cross_entropy_with_logits(logits, targets, reduction="mean")
+        return loss
 
     def forward(self, x):
         logits = self.model.forward(x)

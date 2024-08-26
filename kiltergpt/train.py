@@ -13,6 +13,7 @@ def train(config):
         max_num_tokens=config.max_num_tokens,
         subset=config.subset,
         num_workers=config.num_workers,
+        smooth_labels=config.smooth_labels,
     )
     dm.setup()
 

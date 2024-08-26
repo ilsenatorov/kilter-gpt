@@ -9,6 +9,7 @@ parser.add_argument("--subset", type=float, default=1.0, help="Fraction of datas
 parser.add_argument("--num_workers", type=int, default=0, help="Number of workers for dataloader")
 parser.add_argument("--batch_size", type=int, default=1024, help="Batch size")
 parser.add_argument("--max_num_tokens", type=int, default=None, help="Max number of tokens, overrides batch size")
+parser.add_argument("--smooth_labels", type=str_to_bool, default=False, help="Smooth labels")
 # training params
 parser.add_argument("--only_train", type=str_to_bool, default=False, help="Skip the testing part")
 parser.add_argument("--epochs", type=int, default=500, help="Number of epochs")

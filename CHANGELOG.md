@@ -26,6 +26,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Sample sweep configuration.
 - Added `DynamicBatchSampler` for dynamic batch sampling.
 - Added only_train flag to train.py that skips testing.
+- Added label smoothing to option.
+
 ### Changed
 
 - Changed `utils.py` to `utils/` and created own files for each different utils.

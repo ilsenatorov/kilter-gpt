@@ -34,6 +34,7 @@ class KilterDataModule(L.LightningDataModule):
         pin_memory: bool = True,
         prompt_size: float = 0.2,
         subset: float = 1.0,
+        smooth_labels: bool = False,
     ):
         super().__init__()
         if not isinstance(data_dir, Path):
@@ -45,6 +46,7 @@ class KilterDataModule(L.LightningDataModule):
         self.pin_memory = pin_memory
         self.prompt_size = prompt_size
         self.subset = subset
+        self.smooth_labels = smooth_labels
 
     def _get_dataset(self, csv_filename: str) -> KilterDataset:
         return KilterDataset(
@@ -52,6 +54,7 @@ class KilterDataModule(L.LightningDataModule):
             self.tokenizer,
             prompt_size=self.prompt_size,
             subset=self.subset,
+            smooth_labels=self.smooth_labels,
         )
 
     def collate_fn(self, batch: list[tuple[torch.Tensor, torch.Tensor]]) -> tuple[torch.Tensor, torch.Tensor]:
