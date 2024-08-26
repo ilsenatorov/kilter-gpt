@@ -174,8 +174,8 @@ class GPTModel(L.LightningModule):
         return self.shared_step(batch, "val")
 
     def on_test_epoch_start(self) -> None:
-        self.test_generated = {0.1: [], 0.3: [], 0.5: [], 0.7: []}
-        self.test_real = {0.1: [], 0.3: [], 0.5: [], 0.7: []}
+        self.test_generated = {0.3: [], 0.5: [], 0.7: []}
+        self.test_real = {0.3: [], 0.5: [], 0.7: []}
         return super().on_test_epoch_start()
 
     def test_step(self, batch, batch_idx):
@@ -232,7 +232,7 @@ class GPTModel(L.LightningModule):
         plotter = Plotter()
         finish_hold = "p1387"
         setup = [(30, "6a"), (40, "7a"), (50, "8a")]
-        for temp in [0.1, 0.3, 0.5, 0.7]:
+        for temp in [0.3, 0.5, 0.7]:
             route_frames = [
                 self.generate_from_string(f"{finish_hold}r14", angle, grade, temperature=temp, p=0.8)
                 for angle, grade in setup

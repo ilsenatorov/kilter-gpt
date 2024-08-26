@@ -30,11 +30,12 @@ By defauly it's generated from the `python scripts/preprocess.py` script.
 ## TODO
 
 - Add code to convert model to torchscript/onnx
-- Hyperparameter tuning
 - Visualize the attention matrix
-- Check the block logic
 - Add perplexity
-- Added batch sampling based on number of tokens
+- Add benchmarking for the generation steps
+- ~~Hyperparameter tuning~~
+- ~~Check the block logic~~
+- ~~Added batch sampling based on number of tokens~~
 - ~~Write better tests~~
 - ~~Improve the CI/CD side of things~~
 - ~~Add some automatic evaluation metrics (similarity to real data, consistency, etc.)~~
@@ -55,9 +56,9 @@ By defauly it's generated from the `python scripts/preprocess.py` script.
 
 ## TOTRY
 
-- Use the normal GPT variant - with padding on the right and no slicing
 - Instead of tokenising grade and angle, treat them as continuous variables
 - Write BERT-like model for clustering
 - Use hold positions as extra information
 - Use hand-crafted hold descriptors (pinch/jug/sloper/whatever)
 - Try performer or other linear attention mechanisms
+- ~~Use the normal GPT variant - with padding on the right and no slicing~~
