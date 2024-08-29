@@ -6,10 +6,14 @@ wandb
 beartype
 pytest
 pytest-cov
-fastapi
 opencv-python
 pandas
+matplotlib
+
+# web app
 fastapi
 uvicorn
 httpx
-matplotlib
+sqlalchemy
+pydantic
+pydantic_settings
