@@ -14,8 +14,11 @@ class Settings(BaseSettings):
 
     # ==== Database settings ====
     DB_URL: str = ""
-    DB_ECHO: bool = True
-    DB_DEFAULT_SCHEMA: str = "service"
+    DB_PORT: str = ""
+    DB_NAME: str = ""
+    DB_USER: str = ""
+    DB_PASSWORD: str = ""
+    # TODO: also provide db default schema
 
     class Config:
         env_file = ENV_FILE
