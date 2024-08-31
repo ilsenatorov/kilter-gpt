@@ -13,7 +13,9 @@ parameters:
   subset:
     value: 1.0
   max_num_tokens:
-    value: 20000
+    value: 10000
+  smooth_labels:
+    value: true
   context_len:
     value: 64
   only_train:
@@ -46,4 +48,4 @@ parameters:
     distribution: int_uniform
 early_terminate:
   type: hyperband
-  min_iter: 30
+  min_iter: 40
