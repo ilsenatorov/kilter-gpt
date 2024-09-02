@@ -364,6 +364,7 @@ class GPTModel(L.LightningModule):
     def get_fastapi_app(self) -> FastAPI:
         """Return a FastAPI app that serves the model. Can be launched with gunicorn."""
         from fastapi import FastAPI
+        from randomname import get_name
 
         app = FastAPI()
         self.eval()
@@ -373,6 +374,6 @@ class GPTModel(L.LightningModule):
         def generate(frames: str, angle: int, grade: str, temperature: float = 0.2, p: float = 1.0):
             with torch.no_grad():
                 result = self.generate_from_string(frames, angle, grade, temperature, p)
-            return {"climb": result}
+            return {"climb": result, "name": get_name()}
 
         return app
