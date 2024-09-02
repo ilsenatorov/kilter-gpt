@@ -7,7 +7,7 @@ def test_init():
     """Tests that the tokenizer initializes correctly."""
     tokenizer = Tokenizer()
     assert isinstance(tokenizer, Tokenizer)
-    assert len(tokenizer.hold_token_ids) == 527  # original kilterboard has 527 holds
+    assert len(tokenizer.hold_token_ids) == 476  # original kilterboard has 527 holds
     assert len(tokenizer.angle_token_ids) == (95 // 5)  # 19 angle options
     assert len(tokenizer.color_token_ids) == 4  # 4 hold roles
     assert len(tokenizer.grade_token_ids) == 25  # 24 grades (from 4a to 9a, first plus grade is 6a+)
@@ -31,12 +31,11 @@ def test_tokenizer_encode():
     assert encoded.size(0) == 4
 
 
-def test_tokenizer_encode_padding():
-    """Ensures padding works correctly to a desired length."""
+def test_tokenizer_encode():
     tokenizer = Tokenizer()
-    encoded = tokenizer.encode("p1100r12", 10, "7a", pad=64)
-    assert encoded.size(0) == 64
-    assert torch.all(encoded[:-6] == tokenizer.pad_token_id)  # Check padding tokens
+    encoded = tokenizer.encode("p1100r12", 10, "7a")
+    # 6 tokens: [BOS], [angle], [grade], p1100, r12, [EOS]
+    assert encoded.size(0) == 6
 
 
 def test_tokenizer_decode():
@@ -57,3 +56,13 @@ def test_tokenizer_invalid_inputs():
         raise AssertionError("Expected a ValueError for an invalid sequence")
     except AssertionError:
         pass
+
+
+def test_tokenizer_onehot():
+    tokenizer = Tokenizer()
+    frames = "p1100r12p1200r13p1300r14"
+    encoded = tokenizer.encode(frames, 10, "7a")
+    onehot_from_str = tokenizer.onehot(frames)
+    onehot_from_encoded = tokenizer.onehot(encoded)
+    assert (onehot_from_str == onehot_from_encoded).all()
+    assert onehot_from_str.sum() == 3

@@ -20,25 +20,6 @@ def sort_holds(climb: str) -> str:
     return "".join(["p" + x.strip() for x in holds])
 
 
-def pad_to(
-    tensor: torch.Tensor,
-    size: int,
-    pad_value: int = 0,
-    where: Literal["left", "right"] = "left",
-) -> torch.Tensor:
-    """Pad tensor to a specific size"""
-    if where == "left":
-        left_pad = size - tensor.size(0)
-        right_pad = 0
-    elif where == "right":
-        left_pad = 0
-        right_pad = size - tensor.size(0)
-    pad = [left_pad, right_pad]
-    if tensor.dim() == 2:
-        pad = (0, 0, left_pad, right_pad)
-    return torch.nn.functional.pad(tensor, pad, value=pad_value)
-
-
 class Tokenizer:
     def __init__(self):
         self.encode_map: dict[str, int] = dict()
@@ -59,11 +40,53 @@ class Tokenizer:
 
     @staticmethod
     def hold_tokens():
-        return [f"p{i}" for i in range(1073, 1600)]
+        res = []
+        for i in range(1073, 1600):
+            # Excludes the 12x14 holds
+            if i < 1396 or i > 1446:
+                res.append(f"p{i}")
+        return res
 
     @staticmethod
     def color_tokens():
-        return ["r12", "r13", "r14", "r15"]
+        return [
+            Tokenizer.start_token(),
+            Tokenizer.handhold_token(),
+            Tokenizer.finish_token(),
+            Tokenizer.foothold_token(),
+        ]
+
+    @staticmethod
+    def start_token() -> str:
+        return "r12"
+
+    @staticmethod
+    def handhold_token() -> str:
+        return "r13"
+
+    @staticmethod
+    def finish_token() -> str:
+        return "r14"
+
+    @staticmethod
+    def foothold_token() -> str:
+        return "r15"
+
+    @property
+    def start_token_id(self) -> int:
+        return self.encode_map[self.start_token()]
+
+    @property
+    def handhold_token_id(self) -> int:
+        return self.encode_map[self.handhold_token()]
+
+    @property
+    def finish_token_id(self) -> int:
+        return self.encode_map[self.finish_token()]
+
+    @property
+    def foothold_token_id(self) -> int:
+        return self.encode_map[self.foothold_token()]
 
     @staticmethod
     def grade_tokens():
@@ -168,9 +191,7 @@ class Tokenizer:
         shuffle: bool = False,
         bos: bool = True,
         eos: bool = True,
-        pad: int = 0,
     ) -> torch.Tensor:
-        assert " " not in frames, "Frames should not contain spaces"
         assert all(x in "0123456789pr" for x in frames), "Frames should only contain p, r and digits"
         tokens = []
         if bos:
@@ -185,16 +206,25 @@ class Tokenizer:
         if eos:
             tokens.append(self.eos_token)
         t = torch.tensor([self.encode_map.get(x, self.unk_token_id) for x in tokens], dtype=torch.long)
-        if pad:
-            t = self.pad(t, pad)
         return t
 
-    def onehot(self, frames: str) -> torch.Tensor:
+    def onehot(self, frames: str | torch.Tensor) -> torch.Tensor:
         """Save presence/absence of each hold in a one-hot tensor"""
+        if isinstance(frames, str):
+            return self._onehot_from_string(frames)
+        return self._onehot_from_tensor(frames)
+
+    def _onehot_from_string(self, frames: str) -> torch.Tensor:
         t = torch.zeros(len(self.encode_map), dtype=torch.long)
         for token in self.split_tokens(frames):
             if token.startswith("p"):
                 t[self.encode_map[token]] = 1
+        return t
+
+    def _onehot_from_tensor(self, encoded_frames: torch.Tensor) -> torch.Tensor:
+        t = torch.zeros(len(self.encode_map), dtype=torch.long)
+        encoded_frames = encoded_frames[torch.isin(encoded_frames, self.hold_token_ids)]
+        t[encoded_frames] = 1
         return t
 
     def decode(self, x: torch.Tensor, clean: bool = False) -> list | tuple:
@@ -223,9 +253,6 @@ class Tokenizer:
             elif i.startswith("p") or i.startswith("r"):
                 frames += i
         return frames, angle, grade
-
-    def pad(self, x: torch.Tensor, size: int, where: Literal["left", "right"] = "left"):
-        return pad_to(x, size, self.encode_map[self.pad_token], where=where)
 
     def __repr__(self):
         return f"Tokenizer, tokens:{len(self.encode_map)}, hold:{len(self.hold_tokens())}, angle:{len(self.angle_tokens())}, grade:{len(self.grade_tokens())}"

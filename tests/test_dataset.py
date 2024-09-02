@@ -3,7 +3,8 @@ import pytest
 import torch
 
 from kiltergpt.data.datamodules import KilterDataModule
-from kiltergpt.data.datasets import KilterGPTDataset
+from kiltergpt.data.datasets import KilterDataset
+from kiltergpt.data.samplers import DynamicBatchSampler
 from kiltergpt.data.tokenizer import Tokenizer
 
 
@@ -24,7 +25,7 @@ def dataset_dir(tmp_path):
 
 @pytest.fixture
 def dataset(dataset_dir):
-    return KilterGPTDataset(dataset_dir / "train.csv", Tokenizer(), context_len=64)
+    return KilterDataset(dataset_dir / "train.csv", Tokenizer())
 
 
 def test_dataset_length(dataset):
@@ -33,26 +34,15 @@ def test_dataset_length(dataset):
 
 def test_data_generation_consistency(dataset):
     x, y = dataset[0]
-    assert x.size(0) == dataset.context_len
-    assert y.size(0) == dataset.context_len
+    assert x.size(0) == y.size(0)
+    assert (x[1:] == y[:-1]).all()
 
 
 def test_evaluation_mode(dataset):
     dataset.eval = True
     x, y = dataset[0]
-    assert x.size(0) == dataset.context_len
-    assert y.size(0) == dataset.context_len
-
-
-def test_label_smoothing(dataset):
-    dataset.label_smoothing = True
-    _, y = dataset[0]
-    assert y.size(0) == dataset.context_len
-    assert y.size(1) == dataset.tokenizer.vocab_size
-    assert y.dtype == torch.float32
-    # FIXME fix this test part
-    # nopad = y[y != dataset.tokenizer.pad_token_id]
-    # assert (nopad[torch.isin(nopad, dataset.tokenizer.hold_token_ids())][:-1] > 1).all()
+    # assert that all of x is in y
+    assert (x == y[: x.size(0)]).all()
 
 
 def test_datamodule(dataset_dir):
@@ -63,3 +53,14 @@ def test_datamodule(dataset_dir):
     assert datamodule.train.eval is False
     assert datamodule.val.eval is False
     assert datamodule.test.eval is True
+
+
+def test_batch_sampler(dataset):
+    sampler = DynamicBatchSampler(dataset, 100)
+    for batch in sampler:
+        assert sum(dataset.df.length[idx] for idx in batch) <= 100
+    assert len(sampler) == 1
+    sampler = DynamicBatchSampler(dataset, 13)
+    for batch in sampler:
+        assert sum(dataset.df.length[idx] for idx in batch) <= 13
+    assert len(sampler) == 2

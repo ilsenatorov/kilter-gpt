@@ -1,0 +1,51 @@
+program: scripts/train.py
+method: bayes
+metric:
+  goal: minimize
+  name: val/loss
+parameters:
+  num_workers:
+    value: 15
+  epochs:
+    value: 300
+  precision:
+    value: bf16-mixed
+  subset:
+    value: 1.0
+  max_num_tokens:
+    value: 10000
+  smooth_labels:
+    value: true
+  context_len:
+    value: 64
+  only_train:
+    value: true
+  bias:
+    values: [true, false]
+    distribution: categorical
+  dropout:
+    min: 0.0
+    max: 0.5
+    distribution: uniform
+  lr:
+    max: 0.001
+    min: 0.00001
+    distribution: log_uniform_values
+  wd:
+    max: 0.1
+    min: 0.0001
+    distribution: log_uniform_values
+  n_embed:
+    distribution: q_log_uniform_values
+    max: 1024
+    min: 128
+    q: 128
+  n_head:
+    values: [1, 2, 4, 8, 16]
+  n_layer:
+    max: 16
+    min: 2
+    distribution: int_uniform
+early_terminate:
+  type: hyperband
+  min_iter: 40
