@@ -5,6 +5,8 @@ Work with DB is incapsulated via KilterRepository (feedback&generations).
 """
 
 import logging
+import torch
+
 from typing import Type
 from kiltergpt.models.gpt import GPTModel
 from src.app.config import settings
@@ -23,13 +25,16 @@ class KilterService:
     def generate_route(self, generation_params: GenerationParams) -> Climb:
         """Generates route and saves it to repository."""
 
-        holds = self.kilter_gpt.generate_from_string(
-            frames=generation_params.frames,
-            angle=generation_params.angle,
-            grade=generation_params.grade,
-            temperature=generation_params.temperature,
-            p=generation_params.p
-        )
+        # TODO: maybe extract torch context manager into GPTModel.generate_from_string()
+        # since it's an extra dependency for the service layer?
+        with torch.no_grad():
+            holds = self.kilter_gpt.generate_from_string(
+                frames=generation_params.frames,
+                angle=generation_params.angle,
+                grade=generation_params.grade,
+                temperature=generation_params.temperature,
+                p=generation_params.p
+            )
 
         climb = Climb(holds=holds)
 
