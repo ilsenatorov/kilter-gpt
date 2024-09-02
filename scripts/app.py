@@ -3,7 +3,7 @@ from argparse import ArgumentParser
 import torch
 from fastapi import FastAPI
 
-from kiltergpt.models.gpt import GPTModel
+from src.kiltergpt.models.gpt import GPTModel
 
 parser = ArgumentParser()
 parser.add_argument("model_name", type=str, help="Name of the model from wandb, something like 'model-hhh777xxx:best'")

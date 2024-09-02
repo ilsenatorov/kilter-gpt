@@ -1,7 +1,7 @@
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
 
-from kiltergpt.train import train
-from kiltergpt.utils import str_to_bool
+from src.kiltergpt.train import train
+from src.kiltergpt.utils import str_to_bool
 
 parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
 # dataset params
