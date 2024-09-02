@@ -1,4 +1,5 @@
 import math
+from pathlib import Path
 
 import lightning as L
 import torch
@@ -298,8 +299,12 @@ class GPTModel(L.LightningModule):
         # After color a token only hold or EOS token can be generated
         if last_token in self.tokenizer.color_token_ids.to(self.device):
             mask = torch.zeros_like(logits, dtype=torch.bool)
+            previously_used = prompt[torch.isin(prompt, self.tokenizer.hold_token_ids.to(self.device))]
+            # Only allow hold tokens and EOS token
             mask[self.tokenizer.hold_token_ids] = True
             mask[self.tokenizer.eos_token_id] = True
+            # Previously used holds are not allowed (repetitions)
+            mask[previously_used] = False
             logits[~mask] = float("-inf")
         # After a hold token only color token can be generated
         elif last_token in self.tokenizer.hold_token_ids.to(self.device):
@@ -326,17 +331,19 @@ class GPTModel(L.LightningModule):
             # Stop when you get to full context window (30 holds)
             if prompt.size(0) >= self.config.context_len - 1:
                 prompt = torch.cat(
-                    (prompt, torch.tensor(self.tokenizer.eos_token_id, device=self.device).unsqueeze(0)), dim=0
+                    (prompt, torch.tensor(self.tokenizer.eos_token_id, device=self.device).unsqueeze(0)),
+                    dim=0,
                 )
                 break
         return prompt
 
+    @torch.jit.export
     def generate_from_string(
         self,
         frames: str,
         angle: int,
         grade: str,
-        temperature: float = 0.2,
+        temperature: float = 0.7,
         p: float = 0.8,
     ) -> str:
         """Generate a climb from a string of frames, angle, and grade"""
@@ -345,18 +352,14 @@ class GPTModel(L.LightningModule):
         return self.tokenizer.decode(generated, clean=True)[0]
 
     @staticmethod
-    def load_from_wandb(wandb_model_name: str) -> "GPTModel":
+    def load_from_wandb(model_name: str, repo_name: str = "ilsenatorov/model-registry") -> "GPTModel":
         """Use self.load_from_checkpoint to download model weights from wandb. Looks for models in ilsenatorov/kilter-gpt"""
-        import os
+        import wandb
 
-        file_path = f"artifacts/{wandb_model_name}/model.ckpt"
-        if not os.path.exists(file_path):
-            import wandb
-
-            api = wandb.Api()
-            artifact = api.artifact(f"ilsenatorov/kilter-gpt/{wandb_model_name}")
-            artifact.download()
-        return GPTModel.load_from_checkpoint(file_path)
+        api = wandb.Api()
+        artifact = api.artifact(f"{repo_name}/{model_name}")
+        artifact_dir = artifact.download()
+        return GPTModel.load_from_checkpoint(f"{artifact_dir}/model.ckpt")
 
     def get_fastapi_app(self) -> FastAPI:
         """Return a FastAPI app that serves the model. Can be launched with gunicorn."""

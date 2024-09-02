@@ -24,6 +24,7 @@ processed_data_path.mkdir(exist_ok=True)
 
 # load everything from sql
 # data/db.sqlite3 you can get from the latest kilterboard apk
+print("Loading data from sqlite3")
 conn = sqlite3.connect("data/db.sqlite3")
 climbs = pd.read_sql_query("SELECT * FROM climbs", conn)
 grades = pd.read_sql_query("SELECT * FROM difficulty_grades", conn)
@@ -40,17 +41,17 @@ df["font_grade"] = df["average_grade"].apply(lambda x: x.split("/")[0])
 df["v_grade"] = df["average_grade"].apply(lambda x: x.split("/")[1])
 
 
-print(df.shape)
+print(f"Total climbs:\n{df.shape[0]}")
 df = df[df["frames_count"] == 1]
-print(df.shape)
+print(f"Removing route climbs:\n{df.shape[0]}")
 df = df[df["is_listed"] == 1]
-print(df.shape)
+print(f"Removing unlisted climbs:\n{df.shape[0]}")
 df = df[df["layout_id"] == 1]
-print(df.shape)
+print(f"Removing non-original boards:\n{df.shape[0]}")
 df = df[df["quality_average"] >= args.min_quality]
-print(df.shape)
+print(f"Removing low quality climbs (quality threshold={args.min_quality}):\n{df.shape[0]}")
 df = df[df["ascensionist_count"] >= args.min_ascents].reset_index()
-print(df.shape)
+print(f"Removing climbs with less than {args.min_ascents} ascents:\n{df.shape[0]}")
 
 holds = holds[holds["layout_id"] == 1]  # only original boards
 holds = holds[holds.index.to_series() < 1800]
@@ -60,11 +61,12 @@ kp = KilterPolice(Tokenizer(), n_total_holds=(args.min_holds, args.max_holds))
 df["valid"] = df["frames"].apply(kp.check)
 df[~df["valid"]].to_csv(processed_data_path / "invalid_climbs.csv")
 df = df[df["valid"]]
-print(df.shape)
+print(f"Removing invalid climbs, they are saved to 'invalid_climbs.csv':\n{df.shape[0]}")
 
 holds.to_csv(processed_data_path / "holds.csv")
 grades.to_csv(processed_data_path / "grades.csv")
 
+print("Splitting the data")
 train_frac, val_frac, test_frac = args.data_split
 # split into train, val and test
 df = df.sample(frac=1)  # shuffle
@@ -77,6 +79,7 @@ test.to_csv(processed_data_path / "test.csv")
 
 
 ### for plotter uses
+# print("Creating image coordinates")
 # holds['img_x'] = (7.5 * holds['x']).astype(int)
 # holds['img_y'] = (-7.5 * holds['y'] + 1171).astype(int)
 # holds[['img_x', 'img_y']].to_csv("figs/image_coords.csv")

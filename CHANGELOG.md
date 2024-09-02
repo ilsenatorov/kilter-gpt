@@ -29,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added only_train flag to train.py that skips testing.
 - Added label smoothing to option.
 - Added gradient clipping
+- Prevented repetition of holds in the same sequence.
 
 ### Changed
 
@@ -38,6 +39,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Renamed `KilterGPTDataset` to `KilterDataset`.
 - No padding needed now!
 - Moved training loop logic to a separate file.
+- Loading from wandb is now done from model-registry by default.
 
 ### Removed
 
