@@ -1,8 +1,6 @@
-"""Work with generations table data."""
+from dataclasses import dataclass
 
 
-
+@dataclass
 class GenerationsData:
-    """Generations table declaration."""
-    # TODO: declare supabase table for feedback here
-    pass
+    table_name: str = "generations"

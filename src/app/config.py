@@ -13,12 +13,8 @@ class Settings(BaseSettings):
     # TODO: provide "LOGGING_PATH" with logging config
 
     # ==== Database settings ====
-    DB_URL: str = ""
-    DB_PORT: str = ""
-    DB_NAME: str = ""
-    DB_USER: str = ""
-    DB_PASSWORD: str = ""
-    DB_DEFAULT_SCHEMA: str = "kilter_gpt_service"
+    SUPABASE_URL: str = ""
+    SUPABASE_KEY: str = ""
 
     # ==== Model settings ====
     WANDB_MODEL_NAME = ""
