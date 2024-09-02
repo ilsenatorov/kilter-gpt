@@ -18,7 +18,10 @@ class Settings(BaseSettings):
     DB_NAME: str = ""
     DB_USER: str = ""
     DB_PASSWORD: str = ""
-    # TODO: also provide db default schema
+    DB_DEFAULT_SCHEMA: str = "kilter_gpt_service"
+
+    # ==== Model settings ====
+    WANDB_MODEL_NAME = ""
 
     class Config:
         env_file = ENV_FILE

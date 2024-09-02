@@ -34,13 +34,13 @@ class GenerationParams(BaseModel):
     frames: str = Field(description="")
     angle: int = Field(description="Angle of current user's Kilterboard setup", ge=0, le=70)
     grade: ClimbGrade = Field(description="Grade that supposed to be generated")
-    temperature: Optional[float] = Field(description="Responds for randomness of routes generation", default=0.8, ge=0, le=1)
-    p: Optional[float] = Field(description="top-p sampling (nucleus)", default=1.0)
+    temperature: float = Field(description="Responds for randomness of routes generation", default=0.8, ge=0, le=1)
+    p: float = Field(description="top-p sampling (nucleus)", default=1.0)
 
 
 class Climb(BaseModel):
     holds: str = Field(description="Set of generated holds")
-    id: int = Field(description="Id that should be used to send feedback with")
+    id: Optional[int] = Field(description="Id that should be used to send feedback with", default=None)
 
 
 class Feedback(BaseModel):
