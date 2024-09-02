@@ -34,8 +34,8 @@ class GenerationParams(BaseModel):
     frames: str = Field(description="")
     angle: int = Field(description="Angle of current user's Kilterboard setup", ge=0, le=70)
     grade: ClimbGrade = Field(description="Grade that supposed to be generated")
-    temperature: float = 0.2  # TODO: come up with valid description
-    p: float = 1.0  # TODO: come up with valid description
+    temperature: Optional[float] = Field(description="Responds for randomness of routes generation", default=0.8, ge=0, le=1)
+    p: Optional[float] = Field(description="top-p sampling (nucleus)", default=1.0)
 
 
 class Climb(BaseModel):
