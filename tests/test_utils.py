@@ -90,8 +90,7 @@ def test_scheduler():
 
 def test_hasher():
     h = Hasher.from_json()
-    inp_frames = "p1234r12p1235r13p1236r14p1237r15"  # already sorted
-    code = h.encrypt(inp_frames)
-    decode = h.decrypt(code)
-    assert code is not None
-    assert decode == inp_frames
+    inp = "p1234r12p1235r13p1236r14p1237r15"
+    assert h.encode(inp) is not None
+    assert h.encode(inp) == h.encode(inp)  # deterministic
+    assert h.encode(inp) == h.encode("p1236r14p1237r15p1234r12p1235r13")  # order invariant
