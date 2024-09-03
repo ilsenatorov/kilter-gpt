@@ -27,6 +27,7 @@ class Hasher:
 
     @staticmethod
     def from_json(json_path: str = "data/words.json"):
+        """Standard way to load the Hasher from a json file."""
         with open(json_path, "r") as f:
             data = json.load(f)
         return Hasher(data["adjectives"], data["nouns"])
