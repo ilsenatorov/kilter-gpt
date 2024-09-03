@@ -4,7 +4,7 @@ import pytest
 import torch
 
 from kiltergpt.data.tokenizer import Tokenizer
-from kiltergpt.utils import KilterPolice, Plotter, WarmupCosineSchedule, str_to_bool
+from kiltergpt.utils import Hasher, KilterPolice, Plotter, WarmupCosineSchedule, str_to_bool
 
 
 def test_str_to_bool():
@@ -86,3 +86,12 @@ def test_scheduler():
         assert base_lr * end_lr_coeff <= lr <= base_lr
     for lr in lrs[100:]:
         assert lr == base_lr * end_lr_coeff
+
+
+def test_hasher():
+    h = Hasher.from_json()
+    inp_frames = "p1234r12p1235r13p1236r14p1237r15"  # already sorted
+    code = h.encrypt(inp_frames)
+    decode = h.decrypt(code)
+    assert code is not None
+    assert decode == inp_frames

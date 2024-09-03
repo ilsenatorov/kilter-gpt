@@ -4,7 +4,7 @@
 !.pre-commit-config.yaml
 !.github/
 !data/db.sqlite3
-!data/tokenizer.json
+!data/words.json
 __*__
 data/*
 wandb/

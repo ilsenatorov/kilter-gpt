@@ -227,9 +227,11 @@ class Tokenizer:
         t[encoded_frames] = 1
         return t
 
-    def decode(self, x: torch.Tensor, clean: bool = False) -> list | tuple:
+    def decode(self, x: torch.Tensor | list, clean: bool = False) -> list | tuple:
         decoded = []
-        for token in x.tolist():
+        if isinstance(x, torch.Tensor):
+            x = x.tolist()
+        for token in x:
             if token in self.decode_map:
                 decoded.append(self.decode_map[token])
             else:
