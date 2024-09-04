@@ -1,7 +1,4 @@
 """Place here all db models."""
-from sqlalchemy.orm import configure_mappers
 
-from .engine import engine
-from .generations import GenerationsData
-
-configure_mappers()
+from .client import supabase_client
+from .kilter import KilterClimbs, KilterClimbStats, GenerationMetadata, GeneratedClimbFeedback
