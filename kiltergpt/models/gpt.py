@@ -158,14 +158,17 @@ class GPTModel(L.LightningModule):
     # TODO add tests
     def get_loss(self, logits, targets):
         # batch, sequence, vocab
-        logits = logits[:, 2:, :]
-        B, C, V = logits.shape
-        logits = logits.reshape(B * C, V)
-        if len(targets.size()) == 2:  # If targets are class labels
-            targets = targets.view(B * C)
+        if len(targets.size()) == 2:  # Only 2 dimensions -> class labels (batch, label)
+            B, S = targets.size()
+            logits = logits[:, -S:, :]
+            targets = targets.reshape(B * S)
+            logits = logits.reshape(B * S, -1)
             loss = F.cross_entropy(logits, targets, ignore_index=self.tokenizer.pad_token_id)
-        else:  # if targets are class probabilities
-            targets = targets.view(B * C, V)
+        elif len(targets.size()) == 3:  # multilabel classification (batch, sequence, vocab)
+            B, S, V = targets.size()
+            logits = logits[:, -S:, :]
+            targets = targets.reshape(B * S, V)
+            logits = logits.reshape(B * S, V)
             loss = F.binary_cross_entropy_with_logits(logits, targets, reduction="mean")
         return loss
 
@@ -243,14 +246,13 @@ class GPTModel(L.LightningModule):
         if self.config.only_train:
             return super().on_train_epoch_end()
         plotter = Plotter()
-        finish_hold = "p1387"
+        # finish_hold = "p1387"
         setup = [(30, "6a"), (40, "7a"), (50, "8a")]
         for temp in [0.3, 0.5, 0.7]:
             route_frames = [
-                self.generate_from_string(f"{finish_hold}r14", angle, grade, temperature=temp, p=0.8)
-                for angle, grade in setup
+                self.generate_from_string("", angle, grade, temperature=temp, p=0.8) for angle, grade in setup
             ]
-            route_images = [plotter.plot_climb(x, highlight=finish_hold) for x in route_frames]
+            route_images = [plotter.plot_climb(x) for x in route_frames]
             captions = [f"{grade} @ {angle}, temp={temp}" for angle, grade in setup]
             self.logger.log_image(key=f"test/temp={temp}/images", images=route_images, caption=captions)
         return super().on_train_epoch_end()
@@ -312,11 +314,11 @@ class GPTModel(L.LightningModule):
         # After color a token only hold or EOS token can be generated
         if last_token in self.tokenizer.color_token_ids.to(self.device):
             mask = torch.zeros_like(logits, dtype=torch.bool)
-            previously_used = prompt[torch.isin(prompt, self.tokenizer.hold_token_ids.to(self.device))]
             # Only allow hold tokens and EOS token
             mask[self.tokenizer.hold_token_ids] = True
             mask[self.tokenizer.eos_token_id] = True
             # Previously used holds are not allowed (repetitions)
+            previously_used = prompt[torch.isin(prompt, self.tokenizer.hold_token_ids.to(self.device))]
             mask[previously_used] = False
             logits[~mask] = float("-inf")
         # After a hold token only color token can be generated
@@ -363,7 +365,7 @@ class GPTModel(L.LightningModule):
         x, angle, grade = self.tokenizer.encode(frames, angle, grade, eos=False)
         x, angle, grade = x.to(self.device), angle.to(self.device), grade.to(self.device)
         generated = self.generate(x, angle, grade, temperature=temperature, p=p)
-        return self.tokenizer.decode(generated, clean=True)[0]
+        return self.tokenizer.decode(generated, clean=True)
 
     @staticmethod
     def load_from_wandb(model_name: str, repo_name: str = "ilsenatorov/model-registry") -> "GPTModel":

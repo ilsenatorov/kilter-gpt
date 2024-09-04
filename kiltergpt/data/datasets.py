@@ -37,6 +37,7 @@ class KilterDataset(Dataset):
             row["frames"],
             row["angle"].item(),
             row["difficulty_average"],
+            shuffle=True,
         )
         return tokenized, angle, grade
 

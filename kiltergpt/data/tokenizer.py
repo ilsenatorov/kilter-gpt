@@ -238,21 +238,16 @@ class Tokenizer:
             return self.clean(decoded)
         return decoded
 
-    def clean(self, x: list[str]) -> tuple:
+    def clean(self, x: list[str]):
         """Remove special tokens from the decoded text"""
-        angle, grade = None, None
         frames = ""
         start = x.index(self.bos_token) if self.bos_token in x else 0
         end = x.index(self.eos_token) if self.eos_token in x else len(x)
         x = x[start + 1 : end]
         for i in x:
-            if i.startswith("a"):
-                angle = int(i[1:])
-            elif i.startswith("f"):
-                grade = i[1:]
-            elif i.startswith("p") or i.startswith("r"):
+            if i.startswith("p") or i.startswith("r"):
                 frames += i
-        return frames, angle, grade
+        return frames
 
     def __repr__(self):
         return f"Tokenizer, tokens:{len(self.encode_map)}, hold:{len(self.hold_tokens())}"
