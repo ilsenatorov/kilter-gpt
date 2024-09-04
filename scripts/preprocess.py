@@ -11,9 +11,12 @@ parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
 parser.add_argument("--sqlite_path", type=Path, default="data/db.sqlite3", help="Path to sqlite3 file")
 parser.add_argument("--out_dir", type=Path, default="data/processed", help="Directory to save data")
 parser.add_argument("--min_ascents", type=int, default=1, help="Minimum number of ascents")
-parser.add_argument("--min_quality", type=int, default=2, help="Minimum quality")
-parser.add_argument("--min_holds", type=int, default=4, help="Minimum number of holds")
-parser.add_argument("--max_holds", type=int, default=28, help="Maximum number of holds")
+parser.add_argument("--min_quality", type=float, default=2, help="Minimum quality")
+parser.add_argument("--start_holds", type=int, nargs=2, default=(0, 2), help="Number of start holds")
+parser.add_argument("--finish_holds", type=int, nargs=2, default=(0, 2), help="Number of finish holds")
+parser.add_argument("--hand_holds", type=int, nargs=2, default=(0, 999), help="Number of hand holds")
+parser.add_argument("--foot_holds", type=int, nargs=2, default=(0, 999), help="Number of foot holds")
+parser.add_argument("--total_holds", type=int, nargs=2, default=(4, 28), help="Number of total holds")
 parser.add_argument("--data_split", type=float, nargs=3, default=[0.9, 0.09, 0.01], help="How to split the data")
 args = parser.parse_args()
 
@@ -56,7 +59,7 @@ holds = holds[holds["layout_id"] == 1]  # only original boards
 holds = holds[holds.index.to_series() < 1800]
 
 
-kp = KilterPolice(Tokenizer(), n_total_holds=(args.min_holds, args.max_holds))
+kp = KilterPolice(Tokenizer(), args.start_holds, args.finish_holds, args.foot_holds, args.hand_holds, args.total_holds)
 df["valid"] = df["frames"].apply(kp.check)
 df[~df["valid"]].to_csv(args.out_dir / "invalid_climbs.csv")
 df = df[df["valid"]]
