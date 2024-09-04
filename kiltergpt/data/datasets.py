@@ -16,8 +16,7 @@ class KilterDataset(Dataset):
         tokenizer: Tokenizer,
         *,
         smooth_labels: bool = False,
-        shuffle_tokens: bool = True,
-        prompt_size: float = 0.2,
+        prompt_size: float = 0.5,
         subset: float = 1.0,
     ):
         assert 0 < subset <= 1, f"Subset must be between 0 and 1, got {subset}"
@@ -26,47 +25,41 @@ class KilterDataset(Dataset):
         self.bucket_shuffle()
         self.tokenizer = tokenizer
         self.smooth_labels = smooth_labels
-        self.shuffle_tokens = shuffle_tokens
         self.prompt_size = prompt_size
         self.eval = False
 
     def __len__(self) -> int:
         return len(self.df)
 
-    def _get_item_eval(self, idx: int) -> tuple[torch.LongTensor, torch.LongTensor]:
+    def _get_whole_buffer(self, idx: int):
         row = self.df.iloc[idx]
-        frames = row["frames"]
-        tokenized = self.tokenizer.encode(
-            frames,
+        tokenized, angle, grade = self.tokenizer.encode(
+            row["frames"],
             row["angle"].item(),
-            row["font_grade"],
-            shuffle=self.shuffle_tokens,
+            row["difficulty_average"],
         )
+        return tokenized, angle, grade
+
+    def _get_item_eval(self, idx: int) -> tuple[torch.LongTensor, torch.LongTensor]:
+        tokenized, angle, grade = self._get_whole_buffer(idx)
         n_tokens = tokenized.size(0)
         prompt_size = max(math.ceil(n_tokens * self.prompt_size), 5)
-        return tokenized[:prompt_size], tokenized
+        return tokenized[:prompt_size], angle, grade, tokenized
 
-    def __getitem__(self, idx: int) -> tuple[torch.LongTensor, torch.Tensor]:
+    def __getitem__(self, idx: int):
         if self.eval:
             return self._get_item_eval(idx)
         else:
             return self._get_item_train(idx)
 
-    def _get_item_train(self, idx: int) -> tuple[torch.LongTensor, torch.Tensor]:
+    def _get_item_train(self, idx: int):
         """Get a training item. This will return a tuple of two tensors, x and y, where x is the input and y is the target."""
-        row = self.df.iloc[idx]
-        frames = row["frames"]
-        tokenized = self.tokenizer.encode(
-            frames,
-            row["angle"].item(),
-            row["font_grade"],
-            shuffle=self.shuffle_tokens,
-        )
+        tokenized, angle, grade = self._get_whole_buffer(idx)
         x = tokenized[:-1]
         y = tokenized[1:]
         if self.smooth_labels:
-            y = self.smooth_y(tokenized[1:])
-        return x, y
+            y = self.smooth_y(y)
+        return x, angle, grade, y
 
     def smooth_y(self, y: torch.Tensor) -> torch.Tensor:
         smooth_y = F.one_hot(y, num_classes=self.tokenizer.vocab_size).to(torch.float32)

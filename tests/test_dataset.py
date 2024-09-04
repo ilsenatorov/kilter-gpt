@@ -33,14 +33,14 @@ def test_dataset_length(dataset):
 
 
 def test_data_generation_consistency(dataset):
-    x, y = dataset[0]
+    x, angle, grade, y = dataset[0]
     assert x.size(0) == y.size(0)
     assert (x[1:] == y[:-1]).all()
 
 
 def test_evaluation_mode(dataset):
     dataset.eval = True
-    x, y = dataset[0]
+    x, angle, grade, y = dataset[0]
     # assert that all of x is in y
     assert (x == y[: x.size(0)]).all()
 
@@ -49,7 +49,7 @@ def test_datamodule(dataset_dir):
     datamodule = KilterDataModule(data_dir=dataset_dir, batch_size=2, num_workers=0)
     datamodule.setup()
     batch = next(iter(datamodule.train_dataloader()))
-    assert len(batch) == 2
+    assert len(batch) == 4
     assert datamodule.train.eval is False
     assert datamodule.val.eval is False
     assert datamodule.test.eval is True

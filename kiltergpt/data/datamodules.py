@@ -58,10 +58,12 @@ class KilterDataModule(L.LightningDataModule):
         )
 
     def collate_fn(self, batch: list[tuple[torch.Tensor, torch.Tensor]]) -> tuple[torch.Tensor, torch.Tensor]:
-        x, y = zip(*batch, strict=True)
+        x, angle, grade, y = zip(*batch, strict=True)
         x = pad_sequence(x, batch_first=True, padding_value=self.tokenizer.pad_token_id)
         y = pad_sequence(y, batch_first=True, padding_value=self.tokenizer.pad_token_id)
-        return x, y
+        angle = torch.tensor(angle, dtype=torch.float)
+        grade = torch.tensor(grade, dtype=torch.float)
+        return x, angle, grade, y
 
     def setup(self, stage=None):
         self.tokenizer = Tokenizer()
