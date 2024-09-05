@@ -352,12 +352,12 @@ class GPTModel(L.LightningModule):
         return self.tokenizer.decode(generated, clean=True)[0]
 
     @staticmethod
-    def load_from_wandb(model_name: str, repo_name: str = "ilsenatorov/model-registry") -> "GPTModel":
+    def load_from_wandb(checkpoint_path: str = "ilsenatorov/model-registry/kiltergpt:best") -> "GPTModel":
         """Use self.load_from_checkpoint to download model weights from wandb. Looks for models in ilsenatorov/kilter-gpt"""
         import wandb
 
         api = wandb.Api()
-        artifact = api.artifact(f"{repo_name}/{model_name}")
+        artifact = api.artifact(checkpoint_path)
         artifact_dir = artifact.download()
         return GPTModel.load_from_checkpoint(f"{artifact_dir}/model.ckpt")
 
