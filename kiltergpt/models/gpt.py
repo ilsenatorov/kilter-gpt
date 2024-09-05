@@ -371,7 +371,7 @@ class GPTModel(L.LightningModule):
         return self.tokenizer.decode(generated, clean=True)
 
     @staticmethod
-    def load_from_wandb(checkpoint_path: str) -> "GPTModel":
+    def load_from_wandb(checkpoint_path: str = "ilsenatorov/model-registry/kiltergpt:best") -> "GPTModel":
         """Use self.load_from_checkpoint to download model weights from wandb. Looks for models in ilsenatorov/kilter-gpt"""
         import wandb
 
