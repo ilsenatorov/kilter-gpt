@@ -16,7 +16,12 @@ def tokenizer():
 @pytest.fixture
 def dataset_dir(tmp_path):
     # Create a sample dataframe
-    data = {"frames": ["p1234r12p1211r13p1333r13p1421r15", "p1200r14"], "angle": [10, 20], "font_grade": ["7a", "7b"]}
+    data = {
+        "frames": ["p1234r12p1211r13p1333r13p1421r15", "p1200r14"],
+        "angle": [10, 20],
+        "font_grade": ["7a", "7b"],
+        "difficulty_average": [25, 26],
+    }
     df = pd.DataFrame(data)
     for i in ["train", "val", "test"]:
         df.to_csv(tmp_path / f"{i}.csv", index=False)

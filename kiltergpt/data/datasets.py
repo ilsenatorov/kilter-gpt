@@ -54,7 +54,6 @@ class KilterDataset(Dataset):
             return self._get_item_train(idx)
 
     def _get_item_train(self, idx: int):
-        """Get a training item. This will return a tuple of two tensors, x and y, where x is the input and y is the target."""
         tokenized, angle, grade = self._get_whole_buffer(idx)
         x = tokenized[:-1]
         y = tokenized[1:]

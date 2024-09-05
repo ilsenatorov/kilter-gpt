@@ -138,7 +138,7 @@ class GPT(L.LightningModule):
         tok_emb = self.transformer.wte(idx)  # token embeddings of shape (b, t, n_embd)
         pos_emb = self.transformer.wpe(pos)  # position embeddings of shape (t, n_embd)
         x = self.transformer.drop(tok_emb + pos_emb)
-        x = torch.cat((angle.unsqueeze(1), grade.unsqueeze(1), x), dim=1)
+        x = torch.cat((angle, grade, x), dim=1)
         for block in self.transformer.h:
             x = block(x)
         x = self.transformer.ln_f(x)
@@ -177,6 +177,7 @@ class GPTModel(L.LightningModule):
         return logits
 
     def shared_step(self, batch, name: str):
+        # (B, S), (B, 1), (B, 1), (B, S)
         x, angle, grade, y = batch
         logits = self.forward(x, angle, grade)
         loss = self.get_loss(logits, y)
@@ -195,12 +196,11 @@ class GPTModel(L.LightningModule):
         return super().on_test_epoch_start()
 
     def test_step(self, batch, batch_idx):
-        prompts, targets = batch
+        x, angle, grade, y = batch
         for temp in self.test_generated.keys():
-            for prompt, target in zip(prompts, targets, strict=True):
-                generated = self.generate(prompt, temp, p=0.8)
-                self.test_generated[temp].append(generated.detach().cpu())
-                self.test_real[temp].append(target.detach().cpu())
+            generated = self.generate(x.squeeze(0), angle.squeeze(0), grade.squeeze(0), temp, p=0.8)
+            self.test_generated[temp].append(generated.detach().cpu())
+            self.test_real[temp].append(y.detach().cpu())
 
     def _get_hist_pearson(self, generated, real):
         """Calculate the spearman correlation between token distributions of real and genenerated sequences"""
@@ -222,7 +222,7 @@ class GPTModel(L.LightningModule):
             n_runs = 4
         climbs = set()
         for _ in range(n_runs):
-            climb = self.generate_from_string("p1387r14", 40, "7a", temp, 0.7)
+            climb = self.generate_from_string("p1387r14", 40, "7a", temp, 0.8)
             onehot = self.tokenizer.onehot(climb)
             climbs.add(tuple(onehot.tolist()))
         return len(climbs) / n_runs
@@ -246,13 +246,14 @@ class GPTModel(L.LightningModule):
         if self.config.only_train:
             return super().on_train_epoch_end()
         plotter = Plotter()
-        # finish_hold = "p1387"
+        finish_hold = "p1387"
         setup = [(30, "6a"), (40, "7a"), (50, "8a")]
         for temp in [0.3, 0.5, 0.7]:
             route_frames = [
-                self.generate_from_string("", angle, grade, temperature=temp, p=0.8) for angle, grade in setup
+                self.generate_from_string(f"{finish_hold}r14", angle, grade, temperature=temp, p=0.8)
+                for angle, grade in setup
             ]
-            route_images = [plotter.plot_climb(x) for x in route_frames]
+            route_images = [plotter.plot_climb(x, highlight=finish_hold) for x in route_frames]
             captions = [f"{grade} @ {angle}, temp={temp}" for angle, grade in setup]
             self.logger.log_image(key=f"test/temp={temp}/images", images=route_images, caption=captions)
         return super().on_train_epoch_end()
@@ -279,7 +280,7 @@ class GPTModel(L.LightningModule):
         """Embeds prompts of size (B, C) into (B, C, Z) where Z is the embedding dimension"""
         return self.model.embed(x)
 
-    def _sample_from_logits(self, logits: torch.Tensor, p: float = 1.0) -> torch.Tensor:
+    def _sample_from_logits(self, logits: torch.Tensor, p: float) -> torch.Tensor:
         """Given logits of tokens, sample using top-p sampling"""
         if p < 1.0:
             # sort by probability, get cumulative probs
@@ -300,10 +301,10 @@ class GPTModel(L.LightningModule):
     def _generate_token(
         self,
         prompt: torch.Tensor,
-        angle,
-        grade,
-        temperature: float = 0.2,
-        p: float = 1.0,
+        angle: torch.Tensor,
+        grade: torch.Tensor,
+        temperature: float,
+        p: float,
     ) -> torch.Tensor:
         """Generate a single token
         prompt: torch.LongTensor: input_ids
@@ -311,8 +312,8 @@ class GPTModel(L.LightningModule):
         last_token = prompt[-1]
         logits = self.forward(prompt.unsqueeze(0), angle.unsqueeze(0), grade.unsqueeze(0)).squeeze(0)
         logits = logits[-1, :] / temperature  # Get logits for the last position
-        # After color a token only hold or EOS token can be generated
-        if last_token in self.tokenizer.color_token_ids.to(self.device):
+        # After color/BOS token only hold or EOS token can be generated
+        if last_token in self.tokenizer.color_token_ids.to(self.device) or last_token == self.tokenizer.bos_token_id:
             mask = torch.zeros_like(logits, dtype=torch.bool)
             # Only allow hold tokens and EOS token
             mask[self.tokenizer.hold_token_ids] = True
@@ -336,7 +337,9 @@ class GPTModel(L.LightningModule):
             logits[~mask] = float("-inf")
         return self._sample_from_logits(logits, p)
 
-    def generate(self, prompt: torch.Tensor, angle, grade, temperature: float = 0.2, p: float = 1.0) -> torch.Tensor:
+    def generate(
+        self, prompt: torch.Tensor, angle: torch.Tensor, grade: torch.Tensor, temperature: float, p: float
+    ) -> torch.Tensor:
         """Generate until EOS token is reached (not batched)"""
         next_prompt = None
         while next_prompt != self.tokenizer.eos_token_id:
@@ -357,23 +360,23 @@ class GPTModel(L.LightningModule):
         self,
         frames: str,
         angle: int,
-        grade: str,
+        grade: str | float,
         temperature: float = 0.7,
         p: float = 0.8,
     ) -> str:
         """Generate a climb from a string of frames, angle, and grade"""
         x, angle, grade = self.tokenizer.encode(frames, angle, grade, eos=False)
-        x, angle, grade = x.to(self.device), angle.to(self.device), grade.to(self.device)
+        x, angle, grade = x.to(self.device), angle.to(self.device).unsqueeze(0), grade.to(self.device).unsqueeze(0)
         generated = self.generate(x, angle, grade, temperature=temperature, p=p)
         return self.tokenizer.decode(generated, clean=True)
 
     @staticmethod
-    def load_from_wandb(model_name: str, repo_name: str = "ilsenatorov/model-registry") -> "GPTModel":
+    def load_from_wandb(checkpoint_path: str) -> "GPTModel":
         """Use self.load_from_checkpoint to download model weights from wandb. Looks for models in ilsenatorov/kilter-gpt"""
         import wandb
 
         api = wandb.Api()
-        artifact = api.artifact(f"{repo_name}/{model_name}")
+        artifact = api.artifact(checkpoint_path)
         artifact_dir = artifact.download()
         return GPTModel.load_from_checkpoint(f"{artifact_dir}/model.ckpt")
 
@@ -387,7 +390,7 @@ class GPTModel(L.LightningModule):
         self.to("cpu")
 
         @app.get("/generate")
-        def generate(frames: str, angle: int, grade: str, temperature: float = 0.2, p: float = 1.0):
+        def generate(frames: str, angle: int, grade: str, temperature: float = 0.7, p: float = 0.8):
             with torch.no_grad():
                 result = self.generate_from_string(frames, angle, grade, temperature, p)
             return {"climb": result, "name": get_name()}

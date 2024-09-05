@@ -35,24 +35,6 @@ def test_generate(sample_config):
     assert sample_prompt in generated
 
 
-# def test_test_step(sample_config):
-#     tokenizer = Tokenizer()
-#     model = GPTModel(sample_config, tokenizer)
-#     model.on_test_epoch_start()
-#     sample_input = tokenizer.encode(
-#         "p1234r12p1345r13p1423r14p1243r15",
-#         40,
-#         "7a",
-#         shuffle=True,
-#         eos=False,
-#     )
-#     sample_batch = sample_input.unsqueeze(0).repeat(2, 1)
-#     model.test_step((sample_batch, sample_batch), 0)
-#     assert len(model.test_generated[0.3]) == 2
-#     assert len(model.test_real[0.3]) == 2
-#     model.on_test_epoch_end()
-
-
 def test_app(sample_config):
     tokenizer = Tokenizer()
     model = GPTModel(sample_config, tokenizer)
