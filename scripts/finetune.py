@@ -46,8 +46,8 @@ def check_n_footholds(model, prompts: list[str], n_iter: int = 100):
     return count
 
 
-trainer.logger.log_metrics({f"footholds/{k}": v for k, v in check_n_footholds(model, config.prompts).items()})
-trainer.test(model, dm)
+print("Before fine-tuning (100 samples)")
+print({f"footholds/{k}": v for k, v in check_n_footholds(model, config.prompts).items()})
 trainer.fit(model, dm)
-trainer.logger.log_metrics({f"footholds/{k}": v for k, v in check_n_footholds(model, config.prompts).items()})
-trainer.test(model, dm)
+print("After fine-tuning (100 samples)")
+print({f"footholds/{k}": v for k, v in check_n_footholds(model, config.prompts).items()})

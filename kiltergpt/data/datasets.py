@@ -16,7 +16,7 @@ class KilterDataset(Dataset):
         tokenizer: Tokenizer,
         *,
         smooth_labels: bool = False,
-        prompt_size: float = 0.5,
+        prompt_size: float = 0.2,
         subset: float = 1.0,
     ):
         assert 0 < subset <= 1, f"Subset must be between 0 and 1, got {subset}"
