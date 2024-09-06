@@ -57,11 +57,15 @@ class KilterDataModule(L.LightningDataModule):
             smooth_labels=self.smooth_labels,
         )
 
-    def collate_fn(self, batch: list[tuple[torch.Tensor, torch.Tensor]]) -> tuple[torch.Tensor, torch.Tensor]:
-        x, y = zip(*batch, strict=True)
+    def collate_fn(
+        self, batch: list[tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]]
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        x, angle, grade, y = zip(*batch, strict=True)
         x = pad_sequence(x, batch_first=True, padding_value=self.tokenizer.pad_token_id)
         y = pad_sequence(y, batch_first=True, padding_value=self.tokenizer.pad_token_id)
-        return x, y
+        angle = torch.tensor(angle, dtype=torch.float).unsqueeze(1)
+        grade = torch.tensor(grade, dtype=torch.float).unsqueeze(1)
+        return x, angle, grade, y
 
     def setup(self, stage=None):
         self.tokenizer = Tokenizer()
@@ -90,13 +94,20 @@ class KilterDataModule(L.LightningDataModule):
         )
 
     def train_dataloader(self) -> DataLoader:
-        return self._get_dataloader(self.train, shuffle=False)
+        return self._get_dataloader(self.train, shuffle=True)
 
     def val_dataloader(self) -> DataLoader:
-        return self._get_dataloader(self.val)
+        return self._get_dataloader(self.val, shuffle=False)
 
     def test_dataloader(self) -> DataLoader:
-        return self._get_dataloader(self.test)
+        return DataLoader(
+            self.test,
+            batch_size=1,
+            shuffle=False,
+            pin_memory=True,
+            num_workers=self.num_workers,
+            collate_fn=self.collate_fn,
+        )
 
     def __repr__(self):
         if not hasattr(self, "train"):

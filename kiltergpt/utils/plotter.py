@@ -1,6 +1,7 @@
+import warnings
+
 import cv2
 import pandas as pd
-import torch
 from matplotlib import pyplot as plt
 
 # [0, 255, 0],  # Green
@@ -32,8 +33,13 @@ class Plotter:
         image = cv2.imread(board_path, cv2.IMREAD_GRAYSCALE)
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)  # Convert to RGB
         for hold in frames.split("p")[1:]:
-            hold_id, hold_type = hold.split("r")
+            try:
+                hold_id, hold_type = hold.split("r")
+            except ValueError:
+                warnings.warn(f"Can't split hold/color pair in {frames}", stacklevel=2)
+                continue
             if int(hold_id) not in self.image_coords:
+                warnings.warn(f"Hold {hold_id} not in image coordinates", stacklevel=2)
                 continue
             radius = 30
             thickness = 2

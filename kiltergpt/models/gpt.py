@@ -98,6 +98,8 @@ class GPT(L.LightningModule):
     def __init__(self, config):
         super().__init__()
         self.config = config
+        self.angle_proj = nn.Linear(1, self.config.n_embed)
+        self.grade_proj = nn.Linear(1, self.config.n_embed)
 
         self.transformer = nn.ModuleDict(
             dict(
@@ -123,17 +125,20 @@ class GPT(L.LightningModule):
         elif isinstance(module, nn.Embedding):
             torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
 
-    def forward(self, idx):
-        x = self.embed(idx)
+    def forward(self, idx, angle, grade):
+        x = self.embed(idx, angle, grade)
         logits = self.lm_head(x)
         return logits
 
-    def embed(self, idx):
+    def embed(self, idx, angle, grade):
+        angle = self.angle_proj(angle.unsqueeze(-1))
+        grade = self.grade_proj(grade.unsqueeze(-1))
         b, t = idx.size()
         pos = torch.arange(0, t, dtype=torch.long, device=self.device)  # shape (t)
         tok_emb = self.transformer.wte(idx)  # token embeddings of shape (b, t, n_embd)
         pos_emb = self.transformer.wpe(pos)  # position embeddings of shape (t, n_embd)
         x = self.transformer.drop(tok_emb + pos_emb)
+        x = torch.cat((angle, grade, x), dim=1)
         for block in self.transformer.h:
             x = block(x)
         x = self.transformer.ln_f(x)
@@ -152,24 +157,30 @@ class GPTModel(L.LightningModule):
 
     # TODO add tests
     def get_loss(self, logits, targets):
-        B, C, V = logits.shape
-        logits = logits.view(B * C, V)
-        if len(targets.size()) == 2:  # If targets are class labels
-            targets = targets.view(B * C)
+        # batch, sequence, vocab
+        if len(targets.size()) == 2:  # Only 2 dimensions -> class labels (batch, label)
+            B, S = targets.size()
+            logits = logits[:, -S:, :]
+            targets = targets.reshape(B * S)
+            logits = logits.reshape(B * S, -1)
             loss = F.cross_entropy(logits, targets, ignore_index=self.tokenizer.pad_token_id)
-        else:  # if targets are class probabilities
-            targets = targets.view(B * C, V)
+        elif len(targets.size()) == 3:  # multilabel classification (batch, sequence, vocab)
+            B, S, V = targets.size()
+            logits = logits[:, -S:, :]
+            targets = targets.reshape(B * S, V)
+            logits = logits.reshape(B * S, V)
             loss = F.binary_cross_entropy_with_logits(logits, targets, reduction="mean")
         return loss
 
-    def forward(self, x):
-        logits = self.model.forward(x)
+    def forward(self, x, angle, grade):
+        logits = self.model.forward(x, angle, grade)
         return logits
 
     def shared_step(self, batch, name: str):
-        text, target = batch
-        logits = self.forward(text)
-        loss = self.get_loss(logits, target)
+        # (B, S), (B, 1), (B, 1), (B, S)
+        x, angle, grade, y = batch
+        logits = self.forward(x, angle, grade)
+        loss = self.get_loss(logits, y)
         self.log(f"{name}/loss", loss)
         return loss
 
@@ -185,12 +196,11 @@ class GPTModel(L.LightningModule):
         return super().on_test_epoch_start()
 
     def test_step(self, batch, batch_idx):
-        prompts, targets = batch
+        x, angle, grade, y = batch
         for temp in self.test_generated.keys():
-            for prompt, target in zip(prompts, targets, strict=True):
-                generated = self.generate(prompt, temp, p=0.8)
-                self.test_generated[temp].append(generated.detach().cpu())
-                self.test_real[temp].append(target.detach().cpu())
+            generated = self.generate(x.squeeze(0), angle.squeeze(0), grade.squeeze(0), temp, p=0.8)
+            self.test_generated[temp].append(generated.detach().cpu())
+            self.test_real[temp].append(y.detach().cpu())
 
     def _get_hist_pearson(self, generated, real):
         """Calculate the spearman correlation between token distributions of real and genenerated sequences"""
@@ -212,7 +222,7 @@ class GPTModel(L.LightningModule):
             n_runs = 4
         climbs = set()
         for _ in range(n_runs):
-            climb = self.generate_from_string("p1387r14", 40, "7a", temp, 0.7)
+            climb = self.generate_from_string("p1387r14", 40, "7a", temp, 0.8)
             onehot = self.tokenizer.onehot(climb)
             climbs.add(tuple(onehot.tolist()))
         return len(climbs) / n_runs
@@ -270,7 +280,7 @@ class GPTModel(L.LightningModule):
         """Embeds prompts of size (B, C) into (B, C, Z) where Z is the embedding dimension"""
         return self.model.embed(x)
 
-    def _sample_from_logits(self, logits: torch.Tensor, p: float = 1.0) -> torch.Tensor:
+    def _sample_from_logits(self, logits: torch.Tensor, p: float) -> torch.Tensor:
         """Given logits of tokens, sample using top-p sampling"""
         if p < 1.0:
             # sort by probability, get cumulative probs
@@ -288,22 +298,28 @@ class GPTModel(L.LightningModule):
         next_prompt = torch.multinomial(probs, num_samples=1).to(self.device)
         return next_prompt
 
-    def _generate_token(self, prompt: torch.Tensor, temperature: float = 0.2, p: float = 1.0) -> torch.Tensor:
+    def _generate_token(
+        self,
+        prompt: torch.Tensor,
+        angle: torch.Tensor,
+        grade: torch.Tensor,
+        temperature: float,
+        p: float,
+    ) -> torch.Tensor:
         """Generate a single token
         prompt: torch.LongTensor: input_ids
         """
-        # TODO additionally check the number of start and finish tokens
         last_token = prompt[-1]
-        logits = self.forward(prompt.unsqueeze(0)).squeeze(0)
+        logits = self.forward(prompt.unsqueeze(0), angle.unsqueeze(0), grade.unsqueeze(0)).squeeze(0)
         logits = logits[-1, :] / temperature  # Get logits for the last position
-        # After color a token only hold or EOS token can be generated
-        if last_token in self.tokenizer.color_token_ids.to(self.device):
+        # After color/BOS token only hold or EOS token can be generated
+        if last_token in self.tokenizer.color_token_ids.to(self.device) or last_token == self.tokenizer.bos_token_id:
             mask = torch.zeros_like(logits, dtype=torch.bool)
-            previously_used = prompt[torch.isin(prompt, self.tokenizer.hold_token_ids.to(self.device))]
             # Only allow hold tokens and EOS token
             mask[self.tokenizer.hold_token_ids] = True
             mask[self.tokenizer.eos_token_id] = True
             # Previously used holds are not allowed (repetitions)
+            previously_used = prompt[torch.isin(prompt, self.tokenizer.hold_token_ids.to(self.device))]
             mask[previously_used] = False
             logits[~mask] = float("-inf")
         # After a hold token only color token can be generated
@@ -321,12 +337,14 @@ class GPTModel(L.LightningModule):
             logits[~mask] = float("-inf")
         return self._sample_from_logits(logits, p)
 
-    def generate(self, prompt: torch.Tensor, temperature: float = 0.2, p: float = 1.0) -> torch.Tensor:
+    def generate(
+        self, prompt: torch.Tensor, angle: torch.Tensor, grade: torch.Tensor, temperature: float, p: float
+    ) -> torch.Tensor:
         """Generate until EOS token is reached (not batched)"""
         next_prompt = None
         while next_prompt != self.tokenizer.eos_token_id:
             context = prompt[-self.config.context_len :]
-            next_prompt = self._generate_token(context, temperature, p)
+            next_prompt = self._generate_token(context, angle, grade, temperature=temperature, p=p)
             prompt = torch.cat((prompt, next_prompt), dim=0)
             # Stop when you get to full context window (30 holds)
             if prompt.size(0) >= self.config.context_len - 1:
@@ -342,22 +360,23 @@ class GPTModel(L.LightningModule):
         self,
         frames: str,
         angle: int,
-        grade: str,
+        grade: str | float,
         temperature: float = 0.7,
         p: float = 0.8,
     ) -> str:
         """Generate a climb from a string of frames, angle, and grade"""
-        tokenized = self.tokenizer.encode(frames, angle, grade, eos=False).to(self.device)
-        generated = self.generate(tokenized, temperature, p)
-        return self.tokenizer.decode(generated, clean=True)[0]
+        x, angle, grade = self.tokenizer.encode(frames, angle, grade, eos=False)
+        x, angle, grade = x.to(self.device), angle.to(self.device).unsqueeze(0), grade.to(self.device).unsqueeze(0)
+        generated = self.generate(x, angle, grade, temperature=temperature, p=p)
+        return self.tokenizer.decode(generated, clean=True)
 
     @staticmethod
-    def load_from_wandb(model_name: str, repo_name: str = "ilsenatorov/model-registry") -> "GPTModel":
+    def load_from_wandb(checkpoint_path: str = "ilsenatorov/model-registry/kiltergpt:best") -> "GPTModel":
         """Use self.load_from_checkpoint to download model weights from wandb. Looks for models in ilsenatorov/kilter-gpt"""
         import wandb
 
         api = wandb.Api()
-        artifact = api.artifact(f"{repo_name}/{model_name}")
+        artifact = api.artifact(checkpoint_path)
         artifact_dir = artifact.download()
         return GPTModel.load_from_checkpoint(f"{artifact_dir}/model.ckpt")
 
@@ -365,14 +384,17 @@ class GPTModel(L.LightningModule):
         """Return a FastAPI app that serves the model. Can be launched with gunicorn."""
         from fastapi import FastAPI
 
+        from ..utils import Hasher
+
         app = FastAPI()
         self.eval()
         self.to("cpu")
+        hasher = Hasher.from_json()
 
         @app.get("/generate")
-        def generate(frames: str, angle: int, grade: str, temperature: float = 0.2, p: float = 1.0):
+        def generate(frames: str, angle: int, grade: str, temperature: float = 0.7, p: float = 0.8):
             with torch.no_grad():
                 result = self.generate_from_string(frames, angle, grade, temperature, p)
-            return {"climb": result}
+            return {"climb": result, "prompt": frames, "angle": angle, "grade": grade, "name": hasher.encode(result)}
 
         return app

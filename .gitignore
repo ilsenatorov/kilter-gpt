@@ -3,10 +3,10 @@
 !.gitattributes
 !.pre-commit-config.yaml
 !.github/
-!data/db.sqlite3
-!data/tokenizer.json
-__*__
 data/*
+!data/db.sqlite3
+!data/words.json
+__*__
 wandb/
 kilter-gpt/
 artifacts/*

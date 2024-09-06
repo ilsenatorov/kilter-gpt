@@ -7,6 +7,8 @@ def get_histogram(tensor_list: Iterable[torch.Tensor], vocab_size: int, normaliz
     """Calculate the token distribution of a list of long tensors."""
     hist = torch.zeros(vocab_size)
     for t in tensor_list:
+        if len(t.size()) == 2:
+            t = t.view(-1)
         hist += torch.bincount(t, minlength=vocab_size)
     if normalize:
         hist /= hist.sum()

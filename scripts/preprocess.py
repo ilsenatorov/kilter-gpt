@@ -8,24 +8,26 @@ from kiltergpt.data.tokenizer import Tokenizer
 from kiltergpt.utils import KilterPolice
 
 parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
-parser.add_argument("--data_dir", type=str, default="data", help="Directory to save data, has to contain db.sqlite3")
+parser.add_argument("--sqlite_path", type=Path, default="data/db.sqlite3", help="Path to sqlite3 file")
+parser.add_argument("--out_dir", type=Path, default="data/processed", help="Directory to save data")
 parser.add_argument("--min_ascents", type=int, default=1, help="Minimum number of ascents")
-parser.add_argument("--min_quality", type=int, default=2, help="Minimum quality")
-parser.add_argument("--min_holds", type=int, default=4, help="Minimum number of holds")
-parser.add_argument("--max_holds", type=int, default=28, help="Maximum number of holds")
+parser.add_argument("--min_quality", type=float, default=2, help="Minimum quality")
+parser.add_argument("--start_holds", type=int, nargs=2, default=(0, 2), help="Number of start holds")
+parser.add_argument("--finish_holds", type=int, nargs=2, default=(0, 2), help="Number of finish holds")
+parser.add_argument("--hand_holds", type=int, nargs=2, default=(0, 999), help="Number of hand holds")
+parser.add_argument("--foot_holds", type=int, nargs=2, default=(0, 999), help="Number of foot holds")
+parser.add_argument("--total_holds", type=int, nargs=2, default=(4, 28), help="Number of total holds")
 parser.add_argument("--data_split", type=float, nargs=3, default=[0.9, 0.09, 0.01], help="How to split the data")
 args = parser.parse_args()
 
 assert sum(args.data_split) == 1, "Data split fractions must sum to 1."
 assert len(args.data_split) == 3, "Must have 3 splits for train, val and test."
-data_path = Path("data")
-processed_data_path = data_path / "processed"
-processed_data_path.mkdir(exist_ok=True)
+args.out_dir.mkdir(exist_ok=True, parents=False)
 
 # load everything from sql
 # data/db.sqlite3 you can get from the latest kilterboard apk
 print("Loading data from sqlite3")
-conn = sqlite3.connect("data/db.sqlite3")
+conn = sqlite3.connect(args.sqlite_path)
 climbs = pd.read_sql_query("SELECT * FROM climbs", conn)
 grades = pd.read_sql_query("SELECT * FROM difficulty_grades", conn)
 stats = pd.read_sql_query("SELECT * FROM climb_stats", conn)
@@ -57,14 +59,14 @@ holds = holds[holds["layout_id"] == 1]  # only original boards
 holds = holds[holds.index.to_series() < 1800]
 
 
-kp = KilterPolice(Tokenizer(), n_total_holds=(args.min_holds, args.max_holds))
+kp = KilterPolice(Tokenizer(), args.start_holds, args.finish_holds, args.foot_holds, args.hand_holds, args.total_holds)
 df["valid"] = df["frames"].apply(kp.check)
-df[~df["valid"]].to_csv(processed_data_path / "invalid_climbs.csv")
+df[~df["valid"]].to_csv(args.out_dir / "invalid_climbs.csv")
 df = df[df["valid"]]
 print(f"Removing invalid climbs, they are saved to 'invalid_climbs.csv':\n{df.shape[0]}")
 
-holds.to_csv(processed_data_path / "holds.csv")
-grades.to_csv(processed_data_path / "grades.csv")
+holds.to_csv(args.out_dir / "holds.csv")
+grades.to_csv(args.out_dir / "grades.csv")
 
 print("Splitting the data")
 train_frac, val_frac, test_frac = args.data_split
@@ -73,9 +75,9 @@ df = df.sample(frac=1)  # shuffle
 train = df.iloc[: int(train_frac * len(df))]
 val = df.iloc[int(train_frac * len(df)) : int((train_frac + val_frac) * len(df))]
 test = df.iloc[int((train_frac + val_frac) * len(df)) :]
-train.to_csv(processed_data_path / "train.csv")
-val.to_csv(processed_data_path / "val.csv")
-test.to_csv(processed_data_path / "test.csv")
+train.to_csv(args.out_dir / "train.csv")
+val.to_csv(args.out_dir / "val.csv")
+test.to_csv(args.out_dir / "test.csv")
 
 
 ### for plotter uses
