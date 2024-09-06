@@ -179,12 +179,12 @@ class Tokenizer:
         self,
         frames: str,
         angle: int | None = None,
-        grade: str | float | None = None,
+        grade: str | float | None | np.int64 = None,
         *,
         shuffle: bool = False,
         bos: bool = True,
         eos: bool = True,
-    ) -> tuple[torch.Tensor, float | None, float | None]:
+    ) -> tuple[torch.Tensor, torch.Tensor | None, torch.Tensor | None]:
         assert all(x in "0123456789pr" for x in frames), "Frames should only contain p, r and digits"
         tokens = []
         if bos:
@@ -225,7 +225,7 @@ class Tokenizer:
         t[encoded_frames] = 1
         return t
 
-    def decode(self, x: torch.Tensor | list, clean: bool = False) -> list | tuple:
+    def decode(self, x: torch.Tensor | list, clean: bool = False) -> list[str] | str:
         decoded = []
         if isinstance(x, torch.Tensor):
             x = x.tolist()

@@ -57,7 +57,9 @@ class KilterDataModule(L.LightningDataModule):
             smooth_labels=self.smooth_labels,
         )
 
-    def collate_fn(self, batch: list[tuple[torch.Tensor, torch.Tensor]]) -> tuple[torch.Tensor, torch.Tensor]:
+    def collate_fn(
+        self, batch: list[tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]]
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         x, angle, grade, y = zip(*batch, strict=True)
         x = pad_sequence(x, batch_first=True, padding_value=self.tokenizer.pad_token_id)
         y = pad_sequence(y, batch_first=True, padding_value=self.tokenizer.pad_token_id)
