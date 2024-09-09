@@ -7,7 +7,7 @@ import torch.nn.functional as F
 import torchmetrics.functional as M
 from fastapi import FastAPI
 
-from ... import __version__
+from .. import __version__
 from ..utils import Plotter, WarmupCosineSchedule
 from ..utils.metrics import get_histogram, jaccard_similarity
 
