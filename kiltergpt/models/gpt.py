@@ -1,5 +1,4 @@
 import math
-from pathlib import Path
 
 import lightning as L
 import torch
@@ -8,6 +7,7 @@ import torch.nn.functional as F
 import torchmetrics.functional as M
 from fastapi import FastAPI
 
+from ... import __version__
 from ..utils import Plotter, WarmupCosineSchedule
 from ..utils.metrics import get_histogram, jaccard_similarity
 
@@ -395,6 +395,13 @@ class GPTModel(L.LightningModule):
         def generate(frames: str, angle: int, grade: str, temperature: float = 0.7, p: float = 0.8):
             with torch.no_grad():
                 result = self.generate_from_string(frames, angle, grade, temperature, p)
-            return {"climb": result, "prompt": frames, "angle": angle, "grade": grade, "name": hasher.encode(result)}
+            return {
+                "climb": result,
+                "prompt": frames,
+                "angle": angle,
+                "grade": grade,
+                "name": hasher.encode(result),
+                "version": __version__,
+            }
 
         return app
