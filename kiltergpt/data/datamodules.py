@@ -35,6 +35,7 @@ class KilterDataModule(L.LightningDataModule):
         prompt_size: float = 0.2,
         subset: float = 1.0,
         smooth_labels: bool = False,
+        shuffle: bool = False,
     ):
         super().__init__()
         if not isinstance(data_dir, Path):
@@ -47,6 +48,7 @@ class KilterDataModule(L.LightningDataModule):
         self.prompt_size = prompt_size
         self.subset = subset
         self.smooth_labels = smooth_labels
+        self.shuffle = shuffle
 
     def _get_dataset(self, csv_filename: str) -> KilterDataset:
         return KilterDataset(
@@ -94,7 +96,7 @@ class KilterDataModule(L.LightningDataModule):
         )
 
     def train_dataloader(self) -> DataLoader:
-        return self._get_dataloader(self.train, shuffle=True)
+        return self._get_dataloader(self.train, shuffle=self.shuffle)
 
     def val_dataloader(self) -> DataLoader:
         return self._get_dataloader(self.val, shuffle=False)
