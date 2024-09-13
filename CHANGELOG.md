@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+### Changed
+
+### Removed
+
+### Fixed
+
+## [0.3.0]
+
+### Added
+
 - Added climb name hashing into adjective-noun pairs.
 - Added finetuning script.
 
@@ -17,11 +27,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - More fine-grained control over the preprocessing, allows for multiple datasets.
 - Angle and grade are now continuous variables.
 - Loss is no longer calculated for the angle and grade.
-- FastAPI now also returns meta-data (prompt, angle, grade, name).
-
-### Removed
-
-### Fixed
+- FastAPI now also returns meta-data (prompt, angle, grade, name, version).
+- FastAPI must run without any arguments.
 
 ## [0.2.0] - 2024-09-01
 
