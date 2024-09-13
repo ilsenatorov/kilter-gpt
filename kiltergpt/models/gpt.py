@@ -397,11 +397,10 @@ class GPTModel(L.LightningModule):
         def generate(frames: str, angle: int, grade: str, temperature: float = 0.7, p: float = 0.8):
             with torch.no_grad():
                 result = self.generate_from_string(frames, angle, grade, temperature, p)
-            logits = torch.stack(self._gen_logits).cpu().detach()
+            logits = torch.stack(self._gen_logits).cpu().detach() + 1e-10
             logits = logits[range(0, logits.size(0), 2)]
-            num_val_options = []
-            for row in logits.unbind():
-                num_val_options.append(row[row > 0].size(0))
+            log_probs = torch.log2(logits)
+            entropy = -torch.sum(log_probs * logits)
             return {
                 "climb": result,
                 "prompt": frames,
@@ -411,7 +410,7 @@ class GPTModel(L.LightningModule):
                 "p": p,
                 "name": hasher.encode(result),
                 "version": __version__,
-                "num_choices": round(sum(num_val_options) / len(num_val_options), 2),
+                "entropy": round(entropy.item(), 3),
             }
 
         return app
