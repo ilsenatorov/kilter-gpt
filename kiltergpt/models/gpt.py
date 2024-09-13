@@ -295,6 +295,7 @@ class GPTModel(L.LightningModule):
             logits[indices_to_remove] = float("-inf")
         # Sample from the filtered distribution
         probs = F.softmax(logits, dim=-1)
+        self._gen_logits.append(probs)
         next_prompt = torch.multinomial(probs, num_samples=1).to(self.device)
         return next_prompt
 
@@ -365,6 +366,7 @@ class GPTModel(L.LightningModule):
         p: float = 0.8,
     ) -> str:
         """Generate a climb from a string of frames, angle, and grade"""
+        self._gen_logits = []
         x, angle, grade = self.tokenizer.encode(frames, angle, grade, eos=False)
         x, angle, grade = x.to(self.device), angle.to(self.device).unsqueeze(0), grade.to(self.device).unsqueeze(0)
         generated = self.generate(x, angle, grade, temperature=temperature, p=p)
@@ -395,6 +397,11 @@ class GPTModel(L.LightningModule):
         def generate(frames: str, angle: int, grade: str, temperature: float = 0.7, p: float = 0.8):
             with torch.no_grad():
                 result = self.generate_from_string(frames, angle, grade, temperature, p)
+            logits = torch.stack(self._gen_logits).cpu().detach()
+            logits = logits[range(0, logits.size(0), 2)]
+            num_val_options = []
+            for row in logits.unbind():
+                num_val_options.append(row[row > 0].size(0))
             return {
                 "climb": result,
                 "prompt": frames,
@@ -404,6 +411,7 @@ class GPTModel(L.LightningModule):
                 "p": p,
                 "name": hasher.encode(result),
                 "version": __version__,
+                "num_choices": round(sum(num_val_options) / len(num_val_options), 2),
             }
 
         return app
