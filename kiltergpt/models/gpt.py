@@ -400,6 +400,8 @@ class GPTModel(L.LightningModule):
                 "prompt": frames,
                 "angle": angle,
                 "grade": grade,
+                "temperature": temperature,
+                "p": p,
                 "name": hasher.encode(result),
                 "version": __version__,
             }
