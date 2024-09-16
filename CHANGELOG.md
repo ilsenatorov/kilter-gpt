@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed the grade calculation in preprocessing and tokenization.
+
 ## [0.3.1] - 2024-09-13
 
 ### Added

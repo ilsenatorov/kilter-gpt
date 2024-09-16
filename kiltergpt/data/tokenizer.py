@@ -200,7 +200,7 @@ class Tokenizer:
         if grade is not None:
             if isinstance(grade, str):
                 grade = torch.tensor(
-                    (self.grade_tokens().index(grade)) / len(self.grade_tokens()), dtype=torch.float32
+                    ((self.grade_tokens().index(grade)) + 1) / len(self.grade_tokens()), dtype=torch.float32
                 )
             else:
                 grade = torch.tensor(grade / len(self.grade_tokens()), dtype=torch.float32)
@@ -213,16 +213,16 @@ class Tokenizer:
         return self._onehot_from_tensor(frames)
 
     def _onehot_from_string(self, frames: str) -> torch.Tensor:
-        t = torch.zeros(len(self.encode_map), dtype=torch.long)
+        t = torch.zeros(len(self.encode_map), dtype=torch.bool)
         for token in self.split_tokens(frames):
             if token.startswith("p"):
-                t[self.encode_map[token]] = 1
+                t[self.encode_map[token]] = True
         return t
 
     def _onehot_from_tensor(self, encoded_frames: torch.Tensor) -> torch.Tensor:
-        t = torch.zeros(len(self.encode_map), dtype=torch.long)
+        t = torch.zeros(len(self.encode_map), dtype=torch.bool)
         encoded_frames = encoded_frames[torch.isin(encoded_frames, self.hold_token_ids)]
-        t[encoded_frames] = 1
+        t[encoded_frames] = True
         return t
 
     def decode(self, x: torch.Tensor | list, clean: bool = False) -> list[str] | str:
