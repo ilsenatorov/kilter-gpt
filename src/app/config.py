@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     SUPABASE_KEY: str = ""
 
     # ==== Model settings ====
-    WANDB_MODEL_NAME = ""
+    WANDB_MODEL_NAME: str = ""
 
     class Config:
         env_file = ENV_FILE
