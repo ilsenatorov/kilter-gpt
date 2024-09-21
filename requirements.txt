@@ -9,6 +9,7 @@ pytest-cov
 opencv-python
 pandas
 matplotlib
+numpy==1.25.2
 
 # web app
 fastapi
