@@ -8,22 +8,33 @@ import logging
 import torch
 
 from typing import Type
-from kiltergpt.models.gpt import GPTModel
+from src.kiltergpt.models import GPTModel
 from src.app.config import settings
-from src.app.models.generation import Feedback, GenerationParams, Generation, Climb
-from src.app.repository.generations import GenerationsRepository
+from src.app.models.generation import Feedback, GenerationParams, Climb
+from src.app.repository.kilter import KilterRepository
 
 
 class KilterService:
-    def __init__(self, data_repository: Type[GenerationsRepository]) -> None:
+    def __init__(self, data_repository: Type[KilterRepository]) -> None:
         self.logger = logging.getLogger(self.__class__.__name__)
         self.logger.info(f"Initialized {self.__class__.__name__}")
 
-        self.data_repository: GenerationsRepository = data_repository()
-        self.kilter_gpt = GPTModel.load_from_wandb(settings.WANDB_MODEL_NAME).to("cpu")  # TODO: maybe make device dependent on CUDA existence?
+        self.data_repository: KilterRepository = data_repository()
+        self.kilter_gpt = self.load_model()
+
+    def load_model(self):
+        import sys
+        from pathlib import Path
+        sys.path.append(str(Path(__file__).parent.parent.parent))
+
+        model = GPTModel.load_from_wandb(settings.WANDB_MODEL_NAME).to("cpu")  # TODO: maybe make device dependent on CUDA existence?
+        model.eval()
+
+        return model
 
     def generate_route(self, generation_params: GenerationParams) -> Climb:
         """Generates route and saves it to repository."""
+        self.logger.info("Starting route generation...")
 
         # TODO: maybe extract torch context manager into GPTModel.generate_from_string()
         # since it's an extra dependency for the service layer?
@@ -38,13 +49,14 @@ class KilterService:
 
         climb = Climb(holds=holds)
 
-        climb.id = self.data_repository.save_generation(Generation(
-            params=generation_params,
-            climb=climb
-        ))
+        # idea is to return generation even if we failed to save it
+        try:
+            climb.id = self.data_repository.save_generation(holds=holds, generation_params=generation_params)
+        except Exception as e:
+            self.logger.error(f"Failed to save generated climb: {e}")
 
         return climb
 
-    def update_feedback(self, feedback: Feedback) -> None:
+    def save_feedback(self, feedback: Feedback) -> None:
         """Updates feedback by climbs id."""
-        self.data_repository.update_feedback(feedback)
+        self.data_repository.save_feedback(feedback)
