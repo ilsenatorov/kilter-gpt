@@ -5,11 +5,8 @@ from typing import Optional, Literal
 
 class ClimbGrade(str, Enum):
     _5a = "5a"
-    _5a_plus = "5a+"
     _5b = "5b"
-    _5b_plus = "5b+"
     _5c = "5c"
-    _5c_plus = "5c+"
     _6a = "6a"
     _6a_plus = "6a+"
     _6b = "6b"
@@ -26,12 +23,14 @@ class ClimbGrade(str, Enum):
     _8a_plus = "8a+"
     _8b = "8b"
     _8b_plus = "8b+"
+    _8c = "8c"
+    _8c_plus = "8c+"
     # TODO: do we want to generate harder climbs or vice versa limit with softer grades
     # due to generation quality?
 
 
 class GenerationParams(BaseModel):
-    frames: str = Field(description="")
+    frames: str = Field(description="Prompt with the holds, that user want to see in the climb")
     angle: int = Field(description="Angle of current user's Kilterboard setup", ge=0, le=70)
     grade: ClimbGrade = Field(description="Grade that supposed to be generated")
     temperature: float = Field(description="Responds for randomness of routes generation", default=0.8, ge=0, le=1)
@@ -40,18 +39,15 @@ class GenerationParams(BaseModel):
 
 class Climb(BaseModel):
     holds: str = Field(description="Set of generated holds")
-    id: Optional[int] = Field(description="Id that should be used to send feedback with", default=None)
+    id: Optional[str] = Field(description="Id that should be used to send feedback with", default=None)  # TODO: not sure about type, maybe UUID?
+
+
+class FeedbackType(str, Enum):
+    like = "like"
+    dislike = "dislike"
 
 
 class Feedback(BaseModel):
-    feedback: bool | None = Field(
-        description="True/False for like/dislike, None if not provided",
-        default=None
-    )
-    climb_id: int = Field(description="Id for the climb you want to send feedback for")
-
-
-class Generation(BaseModel):
-    params: GenerationParams
-    climb: Climb
-    feedback: Optional[Feedback] = None
+    feedback: FeedbackType
+    climb_id: str = Field(description="Id (uuid) for the climb you want to send feedback for")
+    user_id: int = Field(description="Id of the user, who wants to share feedback")  # TODO: not sure about type, maybe UUID?

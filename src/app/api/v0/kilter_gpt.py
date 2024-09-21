@@ -12,17 +12,16 @@ from starlette.responses import JSONResponse
 from src.app.models.generation import Feedback, GenerationParams, Climb
 from src.app.service.kilter_gpt import KilterService
 
-from .dependencies import get_kilter_service
+from src.app.dependencies import get_kilter_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-@router.get(
+@router.post(
     "/generate",
     status_code=HTTPStatus.OK,
     description="Generate kilter climb with given params",
-    response_model=Climb,
 )
 def generate_route(
     generation_params: GenerationParams,
@@ -40,5 +39,5 @@ def update_feedback(
     feedback: Feedback,
     kilter_service: Annotated[KilterService, Depends(get_kilter_service)],
 ) -> JSONResponse:
-    kilter_service.update_feedback(feedback)
+    kilter_service.save_feedback(feedback)
     return JSONResponse("ok")
