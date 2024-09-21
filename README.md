@@ -29,6 +29,7 @@ By defauly it's generated from the `python scripts/preprocess.py` script.
 
 ## TODO
 
+- Add an option to select a predefined style for the climb
 - Add code to convert model to torchscript/onnx
 - Visualize the attention matrix
 - Add perplexity

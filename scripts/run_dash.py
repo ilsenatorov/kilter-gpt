@@ -1,3 +1,4 @@
+import argparse
 import base64
 import io
 
@@ -11,8 +12,12 @@ from PIL import Image
 
 from src.kiltergpt.utils import Plotter
 
+parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+parser.add_argument("--csv_file", type=str, default="data/embeddings.csv", help="CSV file with embeddings")
+args = parser.parse_args()
+
 # Sample Data (replace with your DataFrame)
-df = pd.read_csv("data/generated_climbs.csv")
+df = pd.read_csv(args.csv_file)
 plotter = Plotter()
 # Sample Image Frames (replace with your image loading logic)
 
@@ -62,14 +67,14 @@ def update_scatter(clickData):
     return {
         "data": [
             go.Scatter(
-                x=df["x_gpt"],
-                y=df["y_gpt"],
+                x=df["x"],
+                y=df["y"],
                 marker_color=df["difficulty_average"],
                 marker=dict(colorscale="Viridis", opacity=0.9, size=4),
                 # marker_symbol="x",
                 mode="markers",
-                hovertemplate="<b>Prompt: %{customdata[0]}</b><br>Grade: %{customdata[1]}<br>Angle: %{customdata[2]}",  # Add this line
-                customdata=df[["prompt", "angle", "grade"]].values,  # Add this line
+                # hovertemplate="<b>Prompt: %{customdata[0]}</b><br>Grade: %{customdata[1]}<br>Angle: %{customdata[2]}",  # Add this line
+                # customdata=df[["prompt", "angle", "grade"]].values,  # Add this line
             )
         ],
         "layout": go.Layout(

@@ -4,15 +4,21 @@ import torch
 from fastapi import FastAPI
 
 from src.kiltergpt.models.gpt import GPTModel
+from src.kiltergpt import BEST_MODEL
+from src.kiltergpt.models.gpt import GPTModel
 
-parser = ArgumentParser()
-parser.add_argument("model_name", type=str, help="Name of the model from wandb, something like 'model-hhh777xxx:best'")
-
+parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
+parser.add_argument(
+    "--checkpoint_path",
+    type=str,
+    default=BEST_MODEL,
+    help="Name of the model to load",
+)
 args = parser.parse_args()
 
 app = FastAPI()
 
-model = GPTModel.load_from_wandb(args.model_name).to("cpu")
+model = GPTModel.load_from_wandb(args.checkpoint_path).to("cpu")
 app = model.get_fastapi_app()
 
 if __name__ == "__main__":

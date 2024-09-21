@@ -1,6 +1,7 @@
+import warnings
+
 import cv2
 import pandas as pd
-import torch
 from matplotlib import pyplot as plt
 
 # [0, 255, 0],  # Green
@@ -25,15 +26,20 @@ class Plotter:
     def _create_image_coords(self, image_coords: pd.DataFrame):
         return {name: (row["img_x"], row["img_y"]) for name, row in image_coords.iterrows()}
 
-    def plot_climb(self, frames: str, return_fig: bool = False, highlight: str = None):
+    def plot_climb(self, frames: str, return_fig: bool = False, highlight: str | None = None):
         assert all(x in "0123456789pr" for x in frames), "Frames should only contain p, r and digits"
         frames = frames.replace(" ", "")  # here the input takes no whitespace
         board_path = "figs/full_board_commercial.png"
         image = cv2.imread(board_path, cv2.IMREAD_GRAYSCALE)
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)  # Convert to RGB
         for hold in frames.split("p")[1:]:
-            hold_id, hold_type = hold.split("r")
+            try:
+                hold_id, hold_type = hold.split("r")
+            except ValueError:
+                warnings.warn(f"Can't split hold/color pair in {frames}", stacklevel=2)
+                continue
             if int(hold_id) not in self.image_coords:
+                warnings.warn(f"Hold {hold_id} not in image coordinates", stacklevel=2)
                 continue
             radius = 30
             thickness = 2
@@ -60,5 +66,5 @@ class Plotter:
             return plt.imshow(image)
         return image
 
-    def __call__(self, frames: str, return_fig: bool = False, highlight: str = None):
+    def __call__(self, frames: str, return_fig: bool = False, highlight: str | None = None):
         return self.plot_climb(frames, return_fig, highlight)

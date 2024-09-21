@@ -35,6 +35,7 @@ class KilterDataModule(L.LightningDataModule):
         prompt_size: float = 0.2,
         subset: float = 1.0,
         smooth_labels: bool = False,
+        shuffle: bool = False,
     ):
         super().__init__()
         if not isinstance(data_dir, Path):
@@ -47,6 +48,7 @@ class KilterDataModule(L.LightningDataModule):
         self.prompt_size = prompt_size
         self.subset = subset
         self.smooth_labels = smooth_labels
+        self.shuffle = shuffle
 
     def _get_dataset(self, csv_filename: str) -> KilterDataset:
         return KilterDataset(
@@ -57,11 +59,15 @@ class KilterDataModule(L.LightningDataModule):
             smooth_labels=self.smooth_labels,
         )
 
-    def collate_fn(self, batch: list[tuple[torch.Tensor, torch.Tensor]]) -> tuple[torch.Tensor, torch.Tensor]:
-        x, y = zip(*batch, strict=True)
+    def collate_fn(
+        self, batch: list[tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]]
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        x, angle, grade, y = zip(*batch, strict=True)
         x = pad_sequence(x, batch_first=True, padding_value=self.tokenizer.pad_token_id)
         y = pad_sequence(y, batch_first=True, padding_value=self.tokenizer.pad_token_id)
-        return x, y
+        angle = torch.tensor(angle, dtype=torch.float).unsqueeze(1)
+        grade = torch.tensor(grade, dtype=torch.float).unsqueeze(1)
+        return x, angle, grade, y
 
     def setup(self, stage=None):
         self.tokenizer = Tokenizer()
@@ -90,13 +96,20 @@ class KilterDataModule(L.LightningDataModule):
         )
 
     def train_dataloader(self) -> DataLoader:
-        return self._get_dataloader(self.train, shuffle=False)
+        return self._get_dataloader(self.train, shuffle=self.shuffle)
 
     def val_dataloader(self) -> DataLoader:
-        return self._get_dataloader(self.val)
+        return self._get_dataloader(self.val, shuffle=False)
 
     def test_dataloader(self) -> DataLoader:
-        return self._get_dataloader(self.test)
+        return DataLoader(
+            self.test,
+            batch_size=1,
+            shuffle=False,
+            pin_memory=True,
+            num_workers=self.num_workers,
+            collate_fn=self.collate_fn,
+        )
 
     def __repr__(self):
         if not hasattr(self, "train"):

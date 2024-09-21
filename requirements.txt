@@ -15,6 +15,7 @@ numpy==1.25.2
 fastapi
 uvicorn
 httpx
+randomname
 supabase
 pydantic
 pydantic_settings

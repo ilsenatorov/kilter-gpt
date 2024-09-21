@@ -26,7 +26,7 @@ def train(config):
         logger=[L.loggers.WandbLogger(project="kilter-gpt", config=config, log_model=True)],
         precision=config.precision,
         callbacks=[
-            L.callbacks.EarlyStopping(monitor="val/loss", patience=40),
+            L.callbacks.EarlyStopping(monitor="val/loss", patience=50),
             L.callbacks.ModelCheckpoint(monitor="val/loss", mode="min"),
             L.callbacks.LearningRateMonitor(logging_interval="step"),
         ],

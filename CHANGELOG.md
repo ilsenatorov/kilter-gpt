@@ -9,6 +9,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Return entropy of a generation in the API.
+
+### Changed
+
+### Removed
+
+### Fixed
+
+- Fixed the grade calculation in preprocessing and tokenization.
+
+## [0.3.1] - 2024-09-13
+
+### Added
+
+- `BEST_MODEL` const in `__init__.py` to keep track of the best model.
+- More verbose logging in `app.py`.
+
+
+## [0.3.0] - 2024-09-07
+
+### Added
+
+- Added climb name hashing into adjective-noun pairs.
+- Added finetuning script.
+
+### Changed
+
+- More fine-grained control over the preprocessing, allows for multiple datasets.
+- Angle and grade are now continuous variables.
+- Loss is no longer calculated for the angle and grade.
+- FastAPI now also returns meta-data (prompt, angle, grade, name, version).
+- FastAPI must run without any arguments.
+
+## [0.2.0] - 2024-09-01
+
+### Added
+
 - Added a `CHANGELOG.md` file to keep track of changes in the project.
 - Added DataModule tests.
 - Added Plotter tests.
@@ -29,6 +66,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added only_train flag to train.py that skips testing.
 - Added label smoothing to option.
 - Added gradient clipping
+- Prevented repetition of holds in the same sequence.
 
 ### Changed
 
@@ -38,6 +76,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Renamed `KilterGPTDataset` to `KilterDataset`.
 - No padding needed now!
 - Moved training loop logic to a separate file.
+- Loading from wandb is now done from model-registry by default.
 
 ### Removed
 
@@ -49,5 +88,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed paths in other scripts to be OS agnostic.
 - Removed hard-coded devices count in `train.py`.
 - Fixed DataModule `num_workers` not being used.
-
-### Deprecated
