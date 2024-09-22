@@ -18,8 +18,8 @@ class KilterRepository:
 
             self.client = supabase_client
 
-    def save_generation(self, generation_params: GenerationParams, holds: str):
-        climb_id = self._save_generated_climb(holds)
+    def save_generation(self, climb_name: str, generation_params: GenerationParams, holds: str) -> str:
+        climb_id = self._save_generated_climb(holds, climb_name)
         self._save_generation_params(climb_id, generation_params)
         self._save_climb_stats(climb_id, generation_params)
 
@@ -36,9 +36,9 @@ class KilterRepository:
             feedback_model = self._feedback_dto_to_model(feedback)
             self.client.table(TableNames.climb_feedback_table).update(feedback_model.to_dict()).eq("id", feedback.climb_id).execute()
 
-    def _save_generated_climb(self, holds: str) -> str:
+    def _save_generated_climb(self, holds: str, climb_name: str) -> str:
         self.logger.info("Saving generated climb...")
-        kilter_climb = KilterClimb(name="tmp_name_for_generated_climb", frames=holds)
+        kilter_climb = KilterClimb(name=climb_name, frames=holds)
         response = self.client.table(TableNames.climbs_table).insert(kilter_climb.to_dict()).execute()
         return response.data[0]["id"]
 
@@ -50,7 +50,7 @@ class KilterRepository:
     def _save_climb_stats(self, climb_id: str, generation_params: GenerationParams):
         self.logger.info("Saving climb stats...")
         gen_params_model = self._generation_params_dto_to_stats_model(generation_params, climb_id)
-        self.client.table(TableNames.generation_metadata_table).insert(gen_params_model.to_dict()).execute()
+        self.client.table(TableNames.climb_stats_table).insert(gen_params_model.to_dict()).execute()
 
     @staticmethod
     def _feedback_dto_to_model(feedback: Feedback) -> GeneratedClimbFeedback:

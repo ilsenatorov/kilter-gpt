@@ -12,6 +12,7 @@ from src.kiltergpt.models import GPTModel
 from src.app.config import settings
 from src.app.models.generation import Feedback, GenerationParams, Climb
 from src.app.repository.kilter import KilterRepository
+from src.kiltergpt.utils.hasher import Hasher
 
 
 class KilterService:
@@ -21,13 +22,14 @@ class KilterService:
 
         self.data_repository: KilterRepository = data_repository()
         self.kilter_gpt = self.load_model()
+        self.hasher = Hasher.from_json()
 
     def load_model(self):
         import sys
         from pathlib import Path
         sys.path.append(str(Path(__file__).parent.parent.parent))
 
-        model = GPTModel.load_from_wandb(settings.WANDB_MODEL_NAME).to("cpu")  # TODO: maybe make device dependent on CUDA existence?
+        model = GPTModel.load_from_wandb("ilsenatorov/kilter-gpt/model-vvk6wo87:v0").to("cpu")  # TODO: maybe make device dependent on CUDA existence?
         model.eval()
 
         return model
@@ -47,11 +49,11 @@ class KilterService:
                 p=generation_params.p
             )
 
-        climb = Climb(holds=holds)
-
+        climb_name = self.hasher.encode(holds)
+        climb = Climb(holds=holds, name=climb_name)
         # idea is to return generation even if we failed to save it
         try:
-            climb.id = self.data_repository.save_generation(holds=holds, generation_params=generation_params)
+            climb.id = self.data_repository.save_generation(holds=holds, climb_name=climb_name, generation_params=generation_params)
         except Exception as e:
             self.logger.error(f"Failed to save generated climb: {e}")
 

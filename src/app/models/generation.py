@@ -39,6 +39,7 @@ class GenerationParams(BaseModel):
 
 class Climb(BaseModel):
     holds: str = Field(description="Set of generated holds")
+    name: str = Field(description="Generated name for generated climb")
     id: Optional[str] = Field(description="Id that should be used to send feedback with", default=None)  # TODO: not sure about type, maybe UUID?
 
 
