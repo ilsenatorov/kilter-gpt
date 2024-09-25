@@ -25,15 +25,13 @@ class ClimbGrade(str, Enum):
     _8b_plus = "8b+"
     _8c = "8c"
     _8c_plus = "8c+"
-    # TODO: do we want to generate harder climbs or vice versa limit with softer grades
-    # due to generation quality?
 
 
 class GenerationParams(BaseModel):
     frames: str = Field(description="Prompt with the holds, that user want to see in the climb")
     angle: int = Field(description="Angle of current user's Kilterboard setup", ge=0, le=70)
     grade: ClimbGrade = Field(description="Grade that supposed to be generated")
-    temperature: float = Field(description="Responds for randomness of routes generation", default=0.8, ge=0, le=1)
+    temperature: float = Field(description="Responds for randomness of routes generation", default=0.8, ge=0.3, le=1)
     p: float = Field(description="top-p sampling (nucleus)", default=1.0)
 
 

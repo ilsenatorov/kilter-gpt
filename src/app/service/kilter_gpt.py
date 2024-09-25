@@ -29,7 +29,7 @@ class KilterService:
         from pathlib import Path
         sys.path.append(str(Path(__file__).parent.parent.parent))
 
-        model = GPTModel.load_from_wandb(settings.WANDB_MODEL_CHECKPOINT).to("cpu")  # TODO: maybe make device dependent on CUDA existence?
+        model = GPTModel.load_from_wandb(settings.WANDB_MODEL_CHECKPOINT).to("cpu")
         model.eval()
 
         return model
