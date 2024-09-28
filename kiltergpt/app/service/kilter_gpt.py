@@ -25,13 +25,8 @@ class KilterService:
         self.hasher = Hasher.from_json()
 
     def load_model(self):
-        import sys
-        from pathlib import Path
-        sys.path.append(str(Path(__file__).parent.parent.parent))
-
         model = GPTModel.load_from_wandb(settings.WANDB_MODEL_CHECKPOINT).to("cpu")
         model.eval()
-
         return model
 
     def generate_route(self, generation_params: GenerationParams) -> Climb:
