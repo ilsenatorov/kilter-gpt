@@ -34,7 +34,7 @@ pip install -r requirements.txt
 
 ### Run project
 ```bash
-uvicorn src.main:create_app
+uvicorn kiltergpt.app.main:create_app
 ```
 or you can use `__main__.py` for the local development:
 ```bash
@@ -51,7 +51,7 @@ Coming soon ...
 ├── __init__.py
 ├── api
 │   ├── __init__.py
-│   └── v0
+│   └── v0    # api version
 │       ├── __init__.py
 │       └── kilter_gpt.py   # http methods for KilterGPT service
 ├── config.py

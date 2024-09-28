@@ -2,9 +2,9 @@ import logging
 
 from os import name
 from typing import Any, Optional, Dict
-from src.app.models.generation import ClimbGrade, Feedback, Climb, GenerationParams
-from src.app.db.client import supabase_client
-from src.app.db.kilter import GenerationMetadata, KilterClimbStats, TableNames, KilterClimb, GeneratedClimbFeedback
+from kiltergpt.app.models.generation import ClimbGrade, Feedback, Climb, GenerationParams
+from kiltergpt.app.db.client import supabase_client
+from kiltergpt.app.db.kilter import GenerationMetadata, KilterClimbStats, TableNames, KilterClimb, GeneratedClimbFeedback
 
 
 # TODO: maybe refactor all db queries to async behavior?

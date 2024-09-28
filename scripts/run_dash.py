@@ -10,7 +10,7 @@ from dash import dcc, html
 from dash.dependencies import Input, Output
 from PIL import Image
 
-from src.kiltergpt.utils import Plotter
+from kiltergpt.utils import Plotter
 
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument("--csv_file", type=str, default="data/embeddings.csv", help="CSV file with embeddings")

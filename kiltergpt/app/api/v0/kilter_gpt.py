@@ -9,10 +9,10 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query
 from starlette.responses import JSONResponse
 
-from src.app.models.generation import Feedback, GenerationParams, Climb
-from src.app.service.kilter_gpt import KilterService
+from kiltergpt.app.models.generation import Feedback, GenerationParams, Climb
+from kiltergpt.app.service.kilter_gpt import KilterService
 
-from src.app.dependencies import get_kilter_service
+from kiltergpt.app.dependencies import get_kilter_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter()

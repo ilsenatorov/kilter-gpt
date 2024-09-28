@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pandas as pd
 
-from src.kiltergpt.data.tokenizer import Tokenizer
-from src.kiltergpt.utils import KilterPolice
+from kiltergpt.data.tokenizer import Tokenizer
+from kiltergpt.utils import KilterPolice
 
 parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
 parser.add_argument("--sqlite_path", type=Path, default="data/db.sqlite3", help="Path to sqlite3 file")

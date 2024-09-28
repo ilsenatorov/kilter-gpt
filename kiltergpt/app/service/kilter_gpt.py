@@ -8,11 +8,11 @@ import logging
 import torch
 
 from typing import Type
-from src.kiltergpt.models import GPTModel
-from src.app.config import settings
-from src.app.models.generation import Feedback, GenerationParams, Climb
-from src.app.repository.kilter import KilterRepository
-from src.kiltergpt.utils.hasher import Hasher
+from kiltergpt.models import GPTModel
+from kiltergpt.app.config import settings
+from kiltergpt.app.models.generation import Feedback, GenerationParams, Climb
+from kiltergpt.app.repository.kilter import KilterRepository
+from kiltergpt.utils.hasher import Hasher
 
 
 class KilterService:
