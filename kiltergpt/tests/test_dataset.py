@@ -2,10 +2,10 @@ import pandas as pd
 import pytest
 import torch
 
-from src.kiltergpt.data.datamodules import KilterDataModule
-from src.kiltergpt.data.datasets import KilterDataset
-from src.kiltergpt.data.samplers import DynamicBatchSampler
-from src.kiltergpt.data.tokenizer import Tokenizer
+from kiltergpt.data.datamodules import KilterDataModule
+from kiltergpt.data.datasets import KilterDataset
+from kiltergpt.data.samplers import DynamicBatchSampler
+from kiltergpt.data.tokenizer import Tokenizer
 
 
 @pytest.fixture

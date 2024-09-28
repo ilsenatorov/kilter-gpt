@@ -3,8 +3,8 @@ import math
 import pytest
 import torch
 
-from src.kiltergpt.data.tokenizer import Tokenizer
-from src.kiltergpt.utils import Hasher, KilterPolice, Plotter, WarmupCosineSchedule, str_to_bool
+from kiltergpt.data.tokenizer import Tokenizer
+from kiltergpt.utils import Hasher, KilterPolice, Plotter, WarmupCosineSchedule, str_to_bool
 
 
 def test_str_to_bool():

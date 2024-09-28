@@ -1,6 +1,6 @@
 # import torch
 
-# from src.kiltergpt.data.tokenizer import Tokenizer  # Adjust the import path as necessary
+# from kiltergpt.data.tokenizer import Tokenizer  # Adjust the import path as necessary
 
 
 # def test_init():

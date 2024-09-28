@@ -3,8 +3,8 @@ from argparse import Namespace
 import pytest
 from fastapi.testclient import TestClient
 
-from src.kiltergpt.data.tokenizer import Tokenizer
-from src.kiltergpt.models.gpt import GPTModel
+from kiltergpt.data.tokenizer import Tokenizer
+from kiltergpt.models.gpt import GPTModel
 
 
 @pytest.fixture
