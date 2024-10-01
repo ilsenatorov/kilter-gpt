@@ -32,14 +32,60 @@ pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
+For local development you should also install `supabase` to be able to perform storage operations:
+
+For MacOS:
+```bash
+brew install supabase/tap/supabase
+```
 ### Run project
 ```bash
 uvicorn kiltergpt.app.main:create_app
 ```
-or you can use `__main__.py` for the local development:
+
+### Local development
+
+Setup `supabase` first:
+> All operations below supposed to be performed from the root of this repo.
+  `Docker` daemon should also be active.
+
+1. Initialize Supabase to set up the configuration for developing your project locally:
+  ```bash
+  supabase init
+  ```
+2. The start command uses Docker to start the Supabase services.
+   This command may take a while to run if this is the first time using the CLI.
+  ```bash
+  supabase start
+  ```
+Once all of the Supabase services are running, you'll see output containing your local
+Supabase credentials. It should look like this, with urls and keys that you'll use in your
+`.env` configuration file:
+```bash
+Started supabase local development setup.
+
+         API URL: http://localhost:54321
+          DB URL: postgresql://postgres:postgres@localhost:54322/postgres
+      Studio URL: http://localhost:54323
+    Inbucket URL: http://localhost:54324
+        anon key: eyJh......
+service_role key: eyJh......
+```
+
+3. Create migration file with kilter tables initialization script:
+```bash
+supabase migration new kilter_init_scheme
+```
+This creates a new empty migration: `supabase/migrations/<timestamp>
+_kilter_init_scheme.sql.`
+
+You should copy `scripts/sql/init.sql` into that file.
+
+Finally, then we finished with supabase, we can just run:
 ```bash
 python3 __main__.py
 ```
+to start kilter-gpt service
 
 ### Run tests
 Coming soon ...
