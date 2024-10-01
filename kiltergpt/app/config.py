@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     SUPABASE_URL: str = ""
     SUPABASE_KEY: str = ""
 
-    # ==== Model settings ====
+    # ==== Model settings ==== # TODO currently unused
     WANDB_MODEL_CHECKPOINT: str = ""
 
     class Config:

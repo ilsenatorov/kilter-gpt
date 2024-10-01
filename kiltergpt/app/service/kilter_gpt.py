@@ -9,6 +9,7 @@ from typing import Type
 
 import torch
 
+from kiltergpt import BEST_MODEL
 from kiltergpt.app.config import settings
 from kiltergpt.app.models.generation import Climb, Feedback, GenerationParams
 from kiltergpt.app.repository.kilter import KilterRepository
@@ -26,7 +27,7 @@ class KilterService:
         self.hasher = Hasher.from_json()
 
     def load_model(self):
-        model = GPTModel.load_from_wandb(settings.WANDB_MODEL_CHECKPOINT).to("cpu")
+        model = GPTModel.load_from_wandb(BEST_MODEL).to("cpu")
         model.eval()
         return model
 

@@ -414,7 +414,7 @@ class GPTModel(L.LightningModule):
         return frames
 
     @staticmethod
-    def load_from_wandb(checkpoint_path: str = "ilsenatorov/model-registry/kiltergpt:best") -> "GPTModel":
+    def load_from_wandb(checkpoint_path: str) -> "GPTModel":
         """Use self.load_from_checkpoint to download model weights from wandb. Looks for models in ilsenatorov/kilter-gpt"""
         import wandb
 
