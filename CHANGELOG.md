@@ -10,8 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Return entropy of a generation in the API.
+- Plotter highlights the probabilities.
 
 ### Changed
+
+- New BEST_MODEL.
 
 ### Removed
 
@@ -25,7 +28,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `BEST_MODEL` const in `__init__.py` to keep track of the best model.
 - More verbose logging in `app.py`.
-
 
 ## [0.3.0] - 2024-09-07
 
