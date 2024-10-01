@@ -20,3 +20,9 @@ def jaccard_similarity(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
     intersection = (a * b).sum(dim=1)
     union = (a + b).sum(dim=1) - intersection
     return intersection / union
+
+
+def matching_holds(orig: torch.Tensor, ref: torch.Tensor, dim: int = 1):
+    """Fraction of matching holds."""
+    matching = (orig * ref).sum(dim=dim)
+    return matching / orig.sum(dim=dim)

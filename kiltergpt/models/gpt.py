@@ -295,6 +295,7 @@ class GPTModel(L.LightningModule):
             logits[indices_to_remove] = float("-inf")
         # Sample from the filtered distribution
         probs = F.softmax(logits, dim=-1)
+        self._gen_logits.append(probs)
         next_prompt = torch.multinomial(probs, num_samples=1).to(self.device)
         return next_prompt
 
@@ -365,13 +366,55 @@ class GPTModel(L.LightningModule):
         p: float = 0.8,
     ) -> str:
         """Generate a climb from a string of frames, angle, and grade"""
+        self._gen_logits = []
         x, angle, grade = self.tokenizer.encode(frames, angle, grade, eos=False)
         x, angle, grade = x.to(self.device), angle.to(self.device).unsqueeze(0), grade.to(self.device).unsqueeze(0)
         generated = self.generate(x, angle, grade, temperature=temperature, p=p)
         return self.tokenizer.decode(generated, clean=True)
 
+    def generate_generation_fig(
+        self,
+        prompt: str,
+        angle: int,
+        grade: str,
+        temperature: float = 0.7,
+        p: float = 0.8,
+        name: str | None = None,
+        colorscheme: str = "RdPu",
+        cutoff: float = 0.1,
+    ):
+        import imageio
+
+        plotter = Plotter(colorscheme, verbose_cutoff=cutoff)
+        frames = self.generate_from_string(prompt, angle, grade, temperature, p)
+        probs = self._gen_logits
+        probs = probs[0::2]
+        split_frames = [f"p{i}" for i in frames.split("p")[1:]]
+        split_frames = ["".join(split_frames[:i]) for i in range(len(split_frames))]
+        split_frames.append(frames)
+        animation = []
+        for frame, prob in zip(split_frames, probs, strict=True):
+            dict_prob = {}
+            for i in torch.nonzero(prob):
+                dict_prob[self.tokenizer.decode_map[i.item()]] = prob[i].item()
+            animation.append((frame, dict_prob))
+        images = []
+        for i in range(len(animation)):
+            k, v = animation[i]
+            # plot the current frame + options
+            images.append(plotter.plot_climb(k, probs=v))
+            if i < len(animation) - 1:
+                # plot the made choice
+                next_k, _ = animation[i + 1]
+                images.append(plotter.plot_climb(next_k, probs=v))
+        images.append(plotter.plot_climb(frames))
+        if name is None:
+            name = f"{prompt}_{angle}_{grade}_{temperature}_{p}.gif"
+        imageio.mimsave(name, images, fps=1)
+        return frames
+
     @staticmethod
-    def load_from_wandb(checkpoint_path: str = "ilsenatorov/model-registry/kiltergpt:best") -> "GPTModel":
+    def load_from_wandb(checkpoint_path: str) -> "GPTModel":
         """Use self.load_from_checkpoint to download model weights from wandb. Looks for models in ilsenatorov/kilter-gpt"""
         import wandb
 
@@ -379,6 +422,14 @@ class GPTModel(L.LightningModule):
         artifact = api.artifact(checkpoint_path)
         artifact_dir = artifact.download()
         return GPTModel.load_from_checkpoint(f"{artifact_dir}/model.ckpt")
+
+    def get_entropy(self) -> float:
+        """Calculate the entropy of the last generated climb"""
+        logits = torch.stack(self._gen_logits).cpu().detach() + 1e-10
+        logits = logits[range(0, logits.size(0), 2)]
+        log_probs = torch.log2(logits)
+        entropy = -torch.sum(log_probs * logits)
+        return round(entropy.item(), 3)
 
     def get_fastapi_app(self) -> FastAPI:
         """Return a FastAPI app that serves the model. Can be launched with gunicorn."""
@@ -395,6 +446,7 @@ class GPTModel(L.LightningModule):
         def generate(frames: str, angle: int, grade: str, temperature: float = 0.7, p: float = 0.8):
             with torch.no_grad():
                 result = self.generate_from_string(frames, angle, grade, temperature, p)
+            entropy = self.get_entropy()
             return {
                 "climb": result,
                 "prompt": frames,
@@ -404,6 +456,7 @@ class GPTModel(L.LightningModule):
                 "p": p,
                 "name": hasher.encode(result),
                 "version": __version__,
+                "entropy": entropy,
             }
 
         return app

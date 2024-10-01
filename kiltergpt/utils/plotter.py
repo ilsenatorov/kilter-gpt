@@ -1,6 +1,7 @@
 import warnings
 
 import cv2
+import matplotlib
 import pandas as pd
 from matplotlib import pyplot as plt
 
@@ -20,13 +21,21 @@ class Plotter:
     foot_color = (255, 165, 0)
     highlight_color = (255, 255, 255)
 
-    def __init__(self):
+    def __init__(self, colormap: str = "viridis", verbose_cutoff: float = 0.1):
         self.image_coords = self._create_image_coords(pd.read_csv("figs/image_coords.csv", index_col=0))
+        self.colormap = matplotlib.colormaps[colormap]
+        self.verbose_cutoff = verbose_cutoff
 
     def _create_image_coords(self, image_coords: pd.DataFrame):
         return {name: (row["img_x"], row["img_y"]) for name, row in image_coords.iterrows()}
 
-    def plot_climb(self, frames: str, return_fig: bool = False, highlight: str | None = None):
+    def plot_climb(
+        self,
+        frames: str,
+        return_fig: bool = False,
+        highlight: str | None = None,
+        probs: dict | None = None,
+    ):
         assert all(x in "0123456789pr" for x in frames), "Frames should only contain p, r and digits"
         frames = frames.replace(" ", "")  # here the input takes no whitespace
         board_path = "figs/full_board_commercial.png"
@@ -42,7 +51,7 @@ class Plotter:
                 warnings.warn(f"Hold {hold_id} not in image coordinates", stacklevel=2)
                 continue
             radius = 30
-            thickness = 2
+            thickness = 3
             match hold_type:
                 case "12":
                     color = self.start_color
@@ -60,8 +69,34 @@ class Plotter:
                 if int(hold_id) not in self.image_coords:
                     continue
                 radius = 24
-                thickness = 3
+                thickness = 2
                 image = cv2.circle(image, self.image_coords[int(hold_id)], radius, self.highlight_color, thickness)
+        if probs is not None:
+            for hold, prob in probs.items():
+                if not hold.startswith("p"):
+                    continue
+                hold = int(hold[1:])
+                if hold not in self.image_coords:
+                    continue
+                radius = 24
+                thickness = 2
+                color = self.colormap(prob)
+                color = tuple(int(channel * 255) for channel in color[:3])
+                image = cv2.circle(image, self.image_coords[int(hold)], radius, color, thickness)
+                coords = self.image_coords[int(hold)]
+                coords = (coords[0] - 10, coords[1])
+                if prob > self.verbose_cutoff:
+                    image = cv2.putText(
+                        image,
+                        f"{int(prob*100)}%",
+                        coords,
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.75,
+                        (255, 255, 255),
+                        2,
+                        cv2.LINE_AA,
+                        bottomLeftOrigin=False,
+                    )
         if return_fig:
             return plt.imshow(image)
         return image

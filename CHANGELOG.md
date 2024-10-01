@@ -5,18 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.4.0 - 2024-10-01
+
+### Added
+
+- Return entropy of a generation in the API.
+- Plotter highlights the probabilities.
+
+### Changed
+
+- API overhaul, now uses supabase to store feedback.
+- New BEST_MODEL.
+
+### Removed
+
+### Fixed
+
+- Fixed the grade calculation in preprocessing and tokenization.
+
 ## [0.3.1] - 2024-09-13
 
 ### Added
 
 - `BEST_MODEL` const in `__init__.py` to keep track of the best model.
 - More verbose logging in `app.py`.
-
-### Changed
-
-### Removed
-
-### Fixed
 
 ## [0.3.0] - 2024-09-07
 
