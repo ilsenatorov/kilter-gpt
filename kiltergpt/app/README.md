@@ -22,7 +22,7 @@ Env vars can be defined using `.env` file.
 You can find example in `example.env`.
 
 ```bash
-cp conf/example.env .env
+cp example.env .env
 ```
 
 ### Install dependencies
