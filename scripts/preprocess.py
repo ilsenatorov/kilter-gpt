@@ -29,7 +29,7 @@ args.out_dir.mkdir(exist_ok=True, parents=False)
 print("Loading data from sqlite3")
 conn = sqlite3.connect(args.sqlite_path)
 climbs = pd.read_sql_query("SELECT * FROM climbs", conn)
-grades = pd.read_sql_query("SELECT * FROM difficulty_grades", conn)
+grades = pd.read_sql_query("SELECT * FROM difficulty_grades", conn).set_index("difficulty")
 stats = pd.read_sql_query("SELECT * FROM climb_stats", conn)
 holds = pd.read_sql_query("SELECT * FROM holes", conn)
 placements = pd.read_sql_query("SELECT * FROM placements", conn)
@@ -38,7 +38,7 @@ holds.set_index("id_x", inplace=True)
 
 # merge and rename
 df = pd.merge(climbs.drop("angle", axis=1), stats, left_on="uuid", right_on="climb_uuid")
-df["average_grade"] = df["difficulty_average"].apply(lambda x: grades.loc[int(x) + 1, "boulder_name"])
+df["average_grade"] = df["difficulty_average"].apply(lambda x: grades.loc[int(round(x, 0)), "boulder_name"])
 df["font_grade"] = df["average_grade"].apply(lambda x: x.split("/")[0])
 df["v_grade"] = df["average_grade"].apply(lambda x: x.split("/")[1])
 
