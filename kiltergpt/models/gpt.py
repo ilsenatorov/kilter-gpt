@@ -423,6 +423,14 @@ class GPTModel(L.LightningModule):
         artifact_dir = artifact.download()
         return GPTModel.load_from_checkpoint(f"{artifact_dir}/model.ckpt")
 
+    def get_entropy(self) -> float:
+        """Calculate the entropy of the last generated climb"""
+        logits = torch.stack(self._gen_logits).cpu().detach() + 1e-10
+        logits = logits[range(0, logits.size(0), 2)]
+        log_probs = torch.log2(logits)
+        entropy = -torch.sum(log_probs * logits)
+        return round(entropy.item(), 3)
+
     def get_fastapi_app(self) -> FastAPI:
         """Return a FastAPI app that serves the model. Can be launched with gunicorn."""
         from fastapi import FastAPI
@@ -438,10 +446,7 @@ class GPTModel(L.LightningModule):
         def generate(frames: str, angle: int, grade: str, temperature: float = 0.7, p: float = 0.8):
             with torch.no_grad():
                 result = self.generate_from_string(frames, angle, grade, temperature, p)
-            logits = torch.stack(self._gen_logits).cpu().detach() + 1e-10
-            logits = logits[range(0, logits.size(0), 2)]
-            log_probs = torch.log2(logits)
-            entropy = -torch.sum(log_probs * logits)
+            entropy = self.get_entropy()
             return {
                 "climb": result,
                 "prompt": frames,
@@ -451,7 +456,7 @@ class GPTModel(L.LightningModule):
                 "p": p,
                 "name": hasher.encode(result),
                 "version": __version__,
-                "entropy": round(entropy.item(), 3),
+                "entropy": entropy,
             }
 
         return app

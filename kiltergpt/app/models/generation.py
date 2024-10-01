@@ -1,6 +1,9 @@
 from enum import Enum
+from typing import Literal, Optional
+
 from pydantic import BaseModel, Field
-from typing import Optional, Literal
+
+from kiltergpt import __version__
 
 
 class ClimbGrade(str, Enum):
@@ -38,7 +41,11 @@ class GenerationParams(BaseModel):
 class Climb(BaseModel):
     holds: str = Field(description="Set of generated holds")
     name: str = Field(description="Generated name for generated climb")
-    id: Optional[str] = Field(description="Id that should be used to send feedback with", default=None)  # TODO: not sure about type, maybe UUID?
+    version: Optional[str] = Field(description="Version of the GPT model", default=__version__)
+    id: Optional[str] = Field(
+        description="Id that should be used to send feedback with", default=None
+    )  # TODO: not sure about type, maybe UUID?
+    entropy: Optional[float] = Field(description="Entropy of the generated climb", default=None)
 
 
 class FeedbackType(str, Enum):
@@ -49,4 +56,6 @@ class FeedbackType(str, Enum):
 class Feedback(BaseModel):
     feedback: FeedbackType
     climb_id: str = Field(description="Id (uuid) for the climb you want to send feedback for")
-    user_id: int = Field(description="Id of the user, who wants to share feedback")  # TODO: not sure about type, maybe UUID?
+    user_id: int = Field(
+        description="Id of the user, who wants to share feedback"
+    )  # TODO: not sure about type, maybe UUID?

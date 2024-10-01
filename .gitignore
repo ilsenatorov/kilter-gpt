@@ -10,6 +10,7 @@ __*__
 wandb/
 kilter-gpt/
 artifacts/*
+supabase/
 *.ipynb
 *.egg-info
 *.sh
