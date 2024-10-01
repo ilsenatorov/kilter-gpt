@@ -6,11 +6,16 @@ wandb
 beartype
 pytest
 pytest-cov
-fastapi
 opencv-python
 pandas
+matplotlib
+numpy==1.25.2
+
+# web app
 fastapi
 uvicorn
 httpx
-matplotlib
 randomname
+supabase
+pydantic
+pydantic_settings
