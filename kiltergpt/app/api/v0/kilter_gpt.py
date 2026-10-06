@@ -6,13 +6,12 @@ import logging
 from http import HTTPStatus
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends
 from starlette.responses import JSONResponse
 
-from kiltergpt.app.models.generation import Feedback, GenerationParams, Climb
-from kiltergpt.app.service.kilter_gpt import KilterService
-
 from kiltergpt.app.dependencies import get_kilter_service
+from kiltergpt.app.models.generation import Climb, Feedback, GenerationParams
+from kiltergpt.app.service.kilter_gpt import KilterService
 
 logger = logging.getLogger(__name__)
 router = APIRouter()

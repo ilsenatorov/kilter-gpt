@@ -1,7 +1,6 @@
 from pathlib import Path
 
 import lightning as L
-import pandas as pd
 import torch
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader
@@ -87,14 +86,14 @@ class KilterDataModule(L.LightningDataModule):
                 dataset,
                 batch_size=self.batch_size,
                 shuffle=shuffle,
-                pin_memory=True,
+                pin_memory=self.pin_memory,
                 num_workers=self.num_workers,
                 collate_fn=self.collate_fn,
             )
         return DataLoader(
             dataset,
             batch_sampler=DynamicBatchSampler(dataset, self.max_num_tokens, shuffle=shuffle),
-            pin_memory=True,
+            pin_memory=self.pin_memory,
             num_workers=self.num_workers,
             collate_fn=self.collate_fn,
         )
@@ -110,7 +109,7 @@ class KilterDataModule(L.LightningDataModule):
             self.test,
             batch_size=1,
             shuffle=False,
-            pin_memory=True,
+            pin_memory=self.pin_memory,
             num_workers=self.num_workers,
             collate_fn=self.collate_fn,
         )

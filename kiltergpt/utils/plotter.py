@@ -100,6 +100,3 @@ class Plotter:
         if return_fig:
             return plt.imshow(image)
         return image
-
-    def __call__(self, frames: str, return_fig: bool = False, highlight: str | None = None):
-        return self.plot_climb(frames, return_fig, highlight)

@@ -1,6 +1,4 @@
-import datetime
-import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 
 class TableNames:
@@ -12,6 +10,7 @@ class TableNames:
 
 class DictMixin:
     """Mixin class to add 'dict()' method for dataclasses."""
+
     def to_dict(self):
         return {k: v for k, v in self.__dict__.items()}
 

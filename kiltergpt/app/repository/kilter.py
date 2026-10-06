@@ -1,7 +1,5 @@
 import logging
 from functools import cached_property
-from os import name
-from typing import Any, Dict, Optional
 
 from kiltergpt.app.db.client import get_supabase_client
 from kiltergpt.app.db.kilter import (
@@ -11,7 +9,7 @@ from kiltergpt.app.db.kilter import (
     KilterClimbStats,
     TableNames,
 )
-from kiltergpt.app.models.generation import Climb, ClimbGrade, Feedback, GenerationParams
+from kiltergpt.app.models.generation import ClimbGrade, Feedback, GenerationParams
 
 
 # TODO: maybe refactor all db queries to async behavior?

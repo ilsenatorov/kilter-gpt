@@ -21,9 +21,3 @@ def generation_metrics(generated: list[str], reference: set[str], police: Kilter
         "novel_rate": sum(signature not in reference for signature in signatures) / len(generated),
         "nearest_sampled_distance": sum(distances) / len(distances),
     }
-
-
-def matching_holds(orig, ref, dim: int = 1):
-    """Fraction of matching holds."""
-    matching = (orig * ref).sum(dim=dim)
-    return matching / orig.sum(dim=dim)
