@@ -1,28 +1,29 @@
-from typing import Iterable
+from random import Random
 
-import torch
-
-
-def get_histogram(tensor_list: Iterable[torch.Tensor], vocab_size: int, normalize: bool = True) -> torch.Tensor:
-    """Calculate the token distribution of a list of long tensors."""
-    hist = torch.zeros(vocab_size)
-    for t in tensor_list:
-        if len(t.size()) == 2:
-            t = t.view(-1)
-        hist += torch.bincount(t, minlength=vocab_size)
-    if normalize:
-        hist /= hist.sum()
-    return hist
+from ..data.datasets import climb_signature
+from .utils import KilterPolice
 
 
-def jaccard_similarity(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
-    """a and b are of shape (samples, features). Both tensors should be binary."""
-    intersection = (a * b).sum(dim=1)
-    union = (a + b).sum(dim=1) - intersection
-    return intersection / union
+def generation_metrics(generated: list[str], reference: set[str], police: KilterPolice) -> dict[str, float]:
+    if not generated or not reference:
+        raise ValueError("Generation metrics require generated and reference climbs")
+    sampled = [
+        set(signature.split("|")) for signature in Random(42).sample(sorted(reference), min(1024, len(reference)))
+    ]
+    signatures = [climb_signature(frames) for frames in generated]
+    distances = []
+    for signature in signatures:
+        holds = set(signature.split("|")) if signature else set()
+        closest = max((len(holds & other) / len(holds | other) for other in sampled), default=0)
+        distances.append(1 - closest)
+    return {
+        "valid_rate": sum(police.check(frames) for frames in generated) / len(generated),
+        "novel_rate": sum(signature not in reference for signature in signatures) / len(generated),
+        "nearest_sampled_distance": sum(distances) / len(distances),
+    }
 
 
-def matching_holds(orig: torch.Tensor, ref: torch.Tensor, dim: int = 1):
+def matching_holds(orig, ref, dim: int = 1):
     """Fraction of matching holds."""
     matching = (orig * ref).sum(dim=dim)
     return matching / orig.sum(dim=dim)

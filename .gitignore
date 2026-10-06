@@ -3,6 +3,7 @@
 !.gitattributes
 !.pre-commit-config.yaml
 !.github/
+!.python-version
 data/*
 !data/db.sqlite3
 !data/words.json
@@ -15,3 +16,4 @@ supabase/
 *.egg-info
 *.sh
 venv/
+build/

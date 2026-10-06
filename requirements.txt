@@ -1,21 +1,2 @@
-torch
-lightning
-torchmetrics
-rich
-wandb
-beartype
-pytest
-pytest-cov
-opencv-python
-pandas
-matplotlib
-numpy==1.25.2
-
-# web app
-fastapi
-uvicorn
-httpx
-randomname
-supabase
-pydantic
-pydantic_settings
+# Compatibility shim; use `uv sync` for installation.
+-e .

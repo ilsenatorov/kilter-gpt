@@ -1,7 +1,10 @@
+from argparse import Namespace
+
 import lightning.pytorch as L
 import torch
 
 from .data import KilterDataModule
+from .data.tokenizer import Tokenizer
 from .models import GPTModel
 
 
@@ -9,6 +12,7 @@ def train(config):
     L.seed_everything(42)
     torch.set_float32_matmul_precision("high")
     dm = KilterDataModule(
+        data_dir=config.data_dir,
         batch_size=config.batch_size,
         max_num_tokens=config.max_num_tokens,
         subset=config.subset,
@@ -36,4 +40,5 @@ def train(config):
 
     trainer.fit(model, datamodule=dm)
     if not config.only_train:
-        trainer.test(model, datamodule=dm)
+        with torch.serialization.safe_globals([Namespace, Tokenizer]):
+            trainer.test(model, datamodule=dm, ckpt_path="best")

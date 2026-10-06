@@ -4,13 +4,9 @@ Repo for training a model that generates Kilterboard climbs.
 
 ## Installation
 
-`pip3 install -r requirements.txt`
+`uv sync` creates and installs into `.venv` using the locked Python 3.11 dependencies.
 
-[Optional] If you want to install the package locally, you can run
-
-`pip install -e .`
-
-[Optional] Run tests with `pytest`
+Run tests with `uv run python -m pytest`.
 
 ## Data
 
@@ -18,11 +14,11 @@ The `db.sqlite3` file is downloaded with git LFS, so you need to have it install
 Run `git lfs install` to install it, then `git lfs pull` to download the file.
 The file contains the data for the climbs, which is then processed into a csv file for training.
 If you want the updated version of the database, you can download it from the kitlerboard apk.
-Then run the `python scripts/preprocess.py` notebook to generate the data for training.
+Run `uv run python scripts/preprocess.py` for the legacy database. For the downloaded 2026 layout-1 snapshot, run `uv run python scripts/preprocess.py --sqlite_path data/boardsesh-kilter-layout1-2026-10-03.db --out_dir data/processed-broad-2026 --broad`. This keeps zero-ascent climbs but excludes climbed routes rated below 2. Matching reset climbs recover grades and ratings from `data/db.sqlite3`. Splits are fixed by hold/role pattern (90/9/1); `test-post-2024.csv` contains only held-out climbs absent from that legacy database. Existing `data/finetune` CSVs need regeneration before reuse.
 
 ## Training
 
-Simply running the `python scripts/train.py` script will start training the model.
+Run `uv run python scripts/train.py --data_dir data/processed-broad-2026` to train on the broad dataset. Defaults use FP32 and 4096 tokens per batch on an RTX 2080 SUPER (FP16 skipped optimizer updates in the smoke test). For an offline smoke test: `WANDB_MODE=disabled uv run python scripts/train.py --data_dir data/processed-broad-2026 --subset 0.001 --epochs 1 --only_train true`. To compare local checkpoints on the same post-2024 holdout: `uv run python scripts/benchmark.py OLD.ckpt NEW.ckpt`.
 You can adjust the hyperparameters in the script.
 By default the dataset is loaded from `data/processed` folder which contains the three csv files for train, val and test.
 By defauly it's generated from the `python scripts/preprocess.py` script.

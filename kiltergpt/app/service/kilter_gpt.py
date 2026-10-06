@@ -5,11 +5,11 @@ Work with DB is incapsulated via KilterRepository (feedback&generations).
 """
 
 import logging
+from threading import Lock
 from typing import Type
 
 import torch
 
-from kiltergpt import BEST_MODEL
 from kiltergpt.app.config import settings
 from kiltergpt.app.models.generation import Climb, Feedback, GenerationParams
 from kiltergpt.app.repository.kilter import KilterRepository
@@ -24,10 +24,11 @@ class KilterService:
 
         self.data_repository: KilterRepository = data_repository()
         self.kilter_gpt = self.load_model()
+        self._generation_lock = Lock()
         self.hasher = Hasher.from_json()
 
     def load_model(self):
-        model = GPTModel.load_from_wandb(BEST_MODEL).to("cpu")
+        model = GPTModel.load_checkpoint(settings.MODEL_CHECKPOINT).to("cpu")
         model.eval()
         return model
 
@@ -37,7 +38,7 @@ class KilterService:
 
         # TODO: maybe extract torch context manager into GPTModel.generate_from_string()
         # since it's an extra dependency for the service layer?
-        with torch.no_grad():
+        with self._generation_lock, torch.no_grad():
             holds = self.kilter_gpt.generate_from_string(
                 frames=generation_params.frames,
                 angle=generation_params.angle,
@@ -45,7 +46,7 @@ class KilterService:
                 temperature=generation_params.temperature,
                 p=generation_params.p,
             )
-        entropy = self.kilter_gpt.get_entropy()
+            entropy = self.kilter_gpt.get_entropy()
         climb_name = self.hasher.encode(holds)
         climb = Climb(holds=holds, name=climb_name, entropy=entropy)
         # idea is to return generation even if we failed to save it

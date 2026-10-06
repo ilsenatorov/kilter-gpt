@@ -1,9 +1,10 @@
 from enum import Enum
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from kiltergpt import __version__
+from kiltergpt.utils.utils import validate_prompt
 
 
 class ClimbGrade(str, Enum):
@@ -35,7 +36,12 @@ class GenerationParams(BaseModel):
     angle: int = Field(description="Angle of current user's Kilterboard setup", ge=0, le=70)
     grade: ClimbGrade = Field(description="Grade that supposed to be generated")
     temperature: float = Field(description="Responds for randomness of routes generation", default=0.8, ge=0.3, le=1)
-    p: float = Field(description="top-p sampling (nucleus)", default=1.0)
+    p: float = Field(description="top-p sampling (nucleus)", default=1.0, gt=0, le=1)
+
+    @field_validator("frames")
+    @classmethod
+    def valid_frames(cls, frames: str) -> str:
+        return validate_prompt(frames)
 
 
 class Climb(BaseModel):

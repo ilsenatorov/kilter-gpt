@@ -23,6 +23,7 @@ class KilterDataModule(L.LightningDataModule):
         pin_memory (bool): Whether to pin memory in DataLoader.
         prompt_size (float): Fraction of the sequence to use as prompt. Only used if the dataset is set to evaluation mode.
         subset (float): Fraction of the dataset to use. Useful for debugging.
+        test_file (str): Held-out CSV to use for testing.
     """
 
     def __init__(
@@ -36,6 +37,7 @@ class KilterDataModule(L.LightningDataModule):
         subset: float = 1.0,
         smooth_labels: bool = False,
         shuffle: bool = False,
+        test_file: str = "test.csv",
     ):
         super().__init__()
         if not isinstance(data_dir, Path):
@@ -49,6 +51,7 @@ class KilterDataModule(L.LightningDataModule):
         self.subset = subset
         self.smooth_labels = smooth_labels
         self.shuffle = shuffle
+        self.test_file = test_file
 
     def _get_dataset(self, csv_filename: str) -> KilterDataset:
         return KilterDataset(
@@ -57,6 +60,7 @@ class KilterDataModule(L.LightningDataModule):
             prompt_size=self.prompt_size,
             subset=self.subset,
             smooth_labels=self.smooth_labels,
+            shuffle_holds=csv_filename == "train.csv",
         )
 
     def collate_fn(
@@ -73,7 +77,7 @@ class KilterDataModule(L.LightningDataModule):
         self.tokenizer = Tokenizer()
         self.train = self._get_dataset("train.csv")
         self.val = self._get_dataset("val.csv")
-        self.test = self._get_dataset("test.csv")
+        self.test = self._get_dataset(self.test_file)
         self.test.eval = True
         self.vocab_size = self.tokenizer.vocab_size
 

@@ -1,15 +1,18 @@
 import math
+from argparse import Namespace
 
 import lightning as L
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torchmetrics.functional as M
 from fastapi import FastAPI
 
 from .. import __version__
+from ..data.datasets import climb_signature
+from ..data.tokenizer import Tokenizer
 from ..utils import Plotter, WarmupCosineSchedule
-from ..utils.metrics import get_histogram, jaccard_similarity
+from ..utils.metrics import generation_metrics
+from ..utils.utils import KilterPolice, validate_prompt
 
 
 class LayerNorm(nn.Module):
@@ -154,6 +157,7 @@ class GPTModel(L.LightningModule):
         self.config = config
         self.tokenizer = tokenizer
         self.model = GPT(self.config)
+        self._gen_logits = []
 
     # TODO add tests
     def get_loss(self, logits, targets):
@@ -191,55 +195,30 @@ class GPTModel(L.LightningModule):
         return self.shared_step(batch, "val")
 
     def on_test_epoch_start(self) -> None:
+        torch.manual_seed(42)
         self.test_generated = {0.3: [], 0.5: [], 0.7: []}
-        self.test_real = {0.3: [], 0.5: [], 0.7: []}
-        return super().on_test_epoch_start()
+        self.test_reference = {climb_signature(frames) for frames in self.trainer.datamodule.train.df.frames}
+        self.test_police = KilterPolice(self.tokenizer, (1, 2), (1, 2), n_total_holds=(4, 28))
 
     def test_step(self, batch, batch_idx):
         x, angle, grade, y = batch
-        for temp in self.test_generated.keys():
+        self.log("test/loss", self.get_loss(self(y[:, :-1], angle, grade), y[:, 1:]))
+        for temp in self.test_generated:
             generated = self.generate(x.squeeze(0), angle.squeeze(0), grade.squeeze(0), temp, p=0.8)
-            self.test_generated[temp].append(generated.detach().cpu())
-            self.test_real[temp].append(y.detach().cpu())
+            self.test_generated[temp].append(self.tokenizer.decode(generated.detach().cpu(), clean=True))
+            self._gen_logits.clear()
 
-    def _get_hist_pearson(self, generated, real):
-        """Calculate the spearman correlation between token distributions of real and genenerated sequences"""
-        hist_generated = get_histogram(generated, self.tokenizer.vocab_size)
-        hist_real = get_histogram(real, self.tokenizer.vocab_size)
-        hist_spearman = M.spearman_corrcoef(hist_generated, hist_real)
-        return hist_spearman
-
-    def _get_jaccard_similarity(self, generated, real):
-        generated_onehot = torch.stack([self.tokenizer.onehot(x) for x in generated])
-        real_onehot = torch.stack([self.tokenizer.onehot(x) for x in real])
-        jaccard = jaccard_similarity(generated_onehot, real_onehot)
-        return jaccard
-
-    def _get_num_possible_climbs(self, temp: float):
-        n_runs = 40
-        # test run, if the model is too small
-        if self.config.n_embed < 32:
-            n_runs = 4
-        climbs = set()
-        for _ in range(n_runs):
-            climb = self.generate_from_string("p1387r14", 40, "7a", temp, 0.8)
-            onehot = self.tokenizer.onehot(climb)
-            climbs.add(tuple(onehot.tolist()))
+    def _get_fixed_prompt_diversity(self, temp: float):
+        n_runs = 4 if self.config.n_embed < 32 else 16
+        climbs = {climb_signature(self.generate_from_string("p1387r14", 40, "7a", temp, 0.8)) for _ in range(n_runs)}
         return len(climbs) / n_runs
 
     def on_test_epoch_end(self) -> None:
-        for temp in self.test_generated.keys():
+        for temp, generated in self.test_generated.items():
             prefix = f"test/temp={temp}"
-            hist_spearman = self._get_hist_pearson(self.test_generated[temp], self.test_real[temp])
-            jaccard_similarity = self._get_jaccard_similarity(self.test_generated[temp], self.test_real[temp])
-            num_possible_climbs = self._get_num_possible_climbs(temp)
-            self.log_dict(
-                {
-                    f"{prefix}/hist_spearman": hist_spearman,
-                    f"{prefix}/jaccard_similarity": jaccard_similarity.mean(),
-                    f"{prefix}/num_possible_climbs": num_possible_climbs,
-                }
-            )
+            scores = generation_metrics(generated, self.test_reference, self.test_police)
+            scores["fixed_prompt_unique_rate"] = self._get_fixed_prompt_diversity(temp)
+            self.log_dict({f"{prefix}/{name}": score for name, score in scores.items()})
 
     # TODO add tests
     def on_train_epoch_end(self):
@@ -319,9 +298,18 @@ class GPTModel(L.LightningModule):
             # Only allow hold tokens and EOS token
             mask[self.tokenizer.hold_token_ids] = True
             mask[self.tokenizer.eos_token_id] = True
-            # Previously used holds are not allowed (repetitions)
             previously_used = prompt[torch.isin(prompt, self.tokenizer.hold_token_ids.to(self.device))]
             mask[previously_used] = False
+            n_holds = len(previously_used)
+            if (
+                n_holds < 4
+                or not (prompt == self.tokenizer.start_token_id).any()
+                or not (prompt == self.tokenizer.finish_token_id).any()
+            ):
+                mask[self.tokenizer.eos_token_id] = False
+            if n_holds >= 28:
+                mask[:] = False
+                mask[self.tokenizer.eos_token_id] = True
             logits[~mask] = float("-inf")
         # After a hold token only color token can be generated
         elif last_token in self.tokenizer.hold_token_ids.to(self.device):
@@ -334,7 +322,12 @@ class GPTModel(L.LightningModule):
             # not more than 2 finishes
             if (prompt == self.tokenizer.finish_token_id).to(torch.long).sum() >= 2:
                 mask[self.tokenizer.finish_token_id] = False
-            # All not allowed tokens set prob to 0
+            missing_start = not (prompt == self.tokenizer.start_token_id).any()
+            missing_finish = not (prompt == self.tokenizer.finish_token_id).any()
+            n_holds = torch.isin(prompt, self.tokenizer.hold_token_ids.to(self.device)).sum().item()
+            if n_holds + missing_start + missing_finish > 28:
+                mask[:] = False
+                mask[self.tokenizer.start_token_id if missing_start else self.tokenizer.finish_token_id] = True
             logits[~mask] = float("-inf")
         return self._sample_from_logits(logits, p)
 
@@ -366,6 +359,9 @@ class GPTModel(L.LightningModule):
         p: float = 0.8,
     ) -> str:
         """Generate a climb from a string of frames, angle, and grade"""
+        validate_prompt(frames)
+        if not math.isfinite(temperature) or temperature <= 0 or not math.isfinite(p) or not 0 < p <= 1:
+            raise ValueError("Temperature must be positive and top-p must be in (0, 1]")
         self._gen_logits = []
         x, angle, grade = self.tokenizer.encode(frames, angle, grade, eos=False)
         x, angle, grade = x.to(self.device), angle.to(self.device).unsqueeze(0), grade.to(self.device).unsqueeze(0)
@@ -414,6 +410,11 @@ class GPTModel(L.LightningModule):
         return frames
 
     @staticmethod
+    def load_checkpoint(checkpoint_path: str) -> "GPTModel":
+        with torch.serialization.safe_globals([Namespace, Tokenizer]):
+            return GPTModel.load_from_checkpoint(checkpoint_path, map_location="cpu", weights_only=True)
+
+    @staticmethod
     def load_from_wandb(checkpoint_path: str) -> "GPTModel":
         """Use self.load_from_checkpoint to download model weights from wandb. Looks for models in ilsenatorov/kilter-gpt"""
         import wandb
@@ -421,7 +422,7 @@ class GPTModel(L.LightningModule):
         api = wandb.Api()
         artifact = api.artifact(checkpoint_path)
         artifact_dir = artifact.download()
-        return GPTModel.load_from_checkpoint(f"{artifact_dir}/model.ckpt")
+        return GPTModel.load_checkpoint(f"{artifact_dir}/model.ckpt")
 
     def get_entropy(self) -> float:
         """Calculate the entropy of the last generated climb"""
@@ -433,7 +434,9 @@ class GPTModel(L.LightningModule):
 
     def get_fastapi_app(self) -> FastAPI:
         """Return a FastAPI app that serves the model. Can be launched with gunicorn."""
-        from fastapi import FastAPI
+        from threading import Lock
+
+        from fastapi import FastAPI, HTTPException
 
         from ..utils import Hasher
 
@@ -441,12 +444,16 @@ class GPTModel(L.LightningModule):
         self.eval()
         self.to("cpu")
         hasher = Hasher.from_json()
+        generation_lock = Lock()
 
         @app.get("/generate")
         def generate(frames: str, angle: int, grade: str, temperature: float = 0.7, p: float = 0.8):
-            with torch.no_grad():
-                result = self.generate_from_string(frames, angle, grade, temperature, p)
-            entropy = self.get_entropy()
+            try:
+                with generation_lock, torch.no_grad():
+                    result = self.generate_from_string(frames, angle, grade, temperature, p)
+                    entropy = self.get_entropy()
+            except ValueError as exc:
+                raise HTTPException(status_code=422, detail=str(exc)) from exc
             return {
                 "climb": result,
                 "prompt": frames,

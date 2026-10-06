@@ -1,10 +1,17 @@
 import logging
-
+from functools import cached_property
 from os import name
-from typing import Any, Optional, Dict
-from kiltergpt.app.models.generation import ClimbGrade, Feedback, Climb, GenerationParams
-from kiltergpt.app.db.client import supabase_client
-from kiltergpt.app.db.kilter import GenerationMetadata, KilterClimbStats, TableNames, KilterClimb, GeneratedClimbFeedback
+from typing import Any, Dict, Optional
+
+from kiltergpt.app.db.client import get_supabase_client
+from kiltergpt.app.db.kilter import (
+    GeneratedClimbFeedback,
+    GenerationMetadata,
+    KilterClimb,
+    KilterClimbStats,
+    TableNames,
+)
+from kiltergpt.app.models.generation import Climb, ClimbGrade, Feedback, GenerationParams
 
 
 # TODO: maybe refactor all db queries to async behavior?
@@ -13,10 +20,12 @@ class KilterRepository:
     difficulty_mapper = {grade.value: 13 + i for i, grade in enumerate(ClimbGrade)}
 
     def __init__(self):
-            self.logger = logging.getLogger(self.__class__.__name__)
-            self.logger.info(f"Inititalized {self.__class__.__name__}")
+        self.logger = logging.getLogger(self.__class__.__name__)
+        self.logger.info(f"Inititalized {self.__class__.__name__}")
 
-            self.client = supabase_client
+    @cached_property
+    def client(self):
+        return get_supabase_client()
 
     def save_generation(self, climb_name: str, generation_params: GenerationParams, holds: str) -> str:
         climb_id = self._save_generated_climb(holds, climb_name)
@@ -34,7 +43,9 @@ class KilterRepository:
             self.client.table(TableNames.climb_feedback_table).insert(feedback_model.to_dict()).execute()
         else:
             feedback_model = self._feedback_dto_to_model(feedback)
-            self.client.table(TableNames.climb_feedback_table).update(feedback_model.to_dict()).eq("id", feedback.climb_id).execute()
+            self.client.table(TableNames.climb_feedback_table).update(feedback_model.to_dict()).eq(
+                "id", feedback.climb_id
+            ).execute()
 
     def _save_generated_climb(self, holds: str, climb_name: str) -> str:
         self.logger.info("Saving generated climb...")
@@ -54,26 +65,20 @@ class KilterRepository:
 
     @staticmethod
     def _feedback_dto_to_model(feedback: Feedback) -> GeneratedClimbFeedback:
-        return GeneratedClimbFeedback(
-            climb_id=feedback.climb_id,
-            user_id=feedback.user_id,
-            type=feedback.feedback
-        )
+        return GeneratedClimbFeedback(climb_id=feedback.climb_id, user_id=feedback.user_id, type=feedback.feedback)
 
     @staticmethod
-    def _generation_params_dto_to_metadata_model(generation_params: GenerationParams, climb_id: str) -> GenerationMetadata:
+    def _generation_params_dto_to_metadata_model(
+        generation_params: GenerationParams, climb_id: str
+    ) -> GenerationMetadata:
         return GenerationMetadata(
             climb_id=climb_id,
             prompt_frames=generation_params.frames,
             temperature=generation_params.temperature,
-            top_p_sampling=generation_params.p
+            top_p_sampling=generation_params.p,
         )
 
     @staticmethod
     def _generation_params_dto_to_stats_model(generation_params: GenerationParams, climb_id: str) -> KilterClimbStats:
         difficulty = KilterRepository.difficulty_mapper[generation_params.grade]
-        return KilterClimbStats(
-            climb_id=climb_id,
-            angle=generation_params.angle,
-            difficulty=difficulty
-        )
+        return KilterClimbStats(climb_id=climb_id, angle=generation_params.angle, difficulty=difficulty)

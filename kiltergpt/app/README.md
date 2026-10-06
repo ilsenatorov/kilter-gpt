@@ -9,13 +9,14 @@ To run and operate the application, you have to set the environment variables va
 
 | Variable | Default value |
 |---|---|
-| BIND_IP | 0.0.0.0 |
+| BIND_IP | 127.0.0.1 |
 | BIND_PORT | 8000 |
 | HOSTNAME | default |
 | BACKEND_CORS_ORIGINS | * |
 | LOGGING_LEVEL | INFO |
 | SUPABASE_URL | http://127.0.0.1:54321 |
 | SUPABASE_KEY | XxXxXxXx |
+| MODEL_CHECKPOINT | `artifacts/model-tamkrd8d:v0/model.ckpt` (absolute path resolved from repo) |
 
 Env vars can be defined using `.env` file.
 
@@ -28,8 +29,7 @@ cp example.env .env
 ### Install dependencies
 
 ```bash
-pip install --upgrade pip
-pip install -r requirements.txt
+uv sync
 ```
 
 For local development you should also install `supabase` to be able to perform storage operations:
@@ -39,8 +39,9 @@ For MacOS:
 brew install supabase/tap/supabase
 ```
 ### Run project
+Set `MODEL_CHECKPOINT` to an existing trusted checkpoint; the default points to a local artifact that is not included in Git.
 ```bash
-uvicorn kiltergpt.app.main:create_app
+uv run python __main__.py
 ```
 
 ### Local development
@@ -83,12 +84,14 @@ You should copy `scripts/sql/init.sql` into that file.
 
 Finally, then we finished with supabase, we can just run:
 ```bash
-python3 __main__.py
+uv run python __main__.py
 ```
 to start kilter-gpt service
 
 ### Run tests
-Coming soon ...
+`uv run python -m pytest`
+
+The API has no authentication: keep it bound to loopback until an authenticated deployment is built. Supabase credentials are only needed when saving generated climbs or feedback.
 
 ## Service structure
 ```

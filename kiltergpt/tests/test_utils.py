@@ -3,8 +3,10 @@ import math
 import pytest
 import torch
 
+from kiltergpt.data.datasets import climb_signature
 from kiltergpt.data.tokenizer import Tokenizer
 from kiltergpt.utils import Hasher, KilterPolice, Plotter, WarmupCosineSchedule, str_to_bool
+from kiltergpt.utils.metrics import generation_metrics
 
 
 def test_str_to_bool():
@@ -56,6 +58,15 @@ def test_kilter_police_disallowed_things(kilter_police, sane_climb, broken_addit
 def test_kilter_police_too_few(kilter_police):
     assert not kilter_police.check("")  # empty climb
     assert not kilter_police.check("p1200r12")  # only one hold
+
+
+def test_generation_metrics(kilter_police, sane_climb):
+    reordered = "p1203r15p1202r14p1201r13p1200r12"
+    different = "p1200r12p1201r13p1202r14p1204r15"
+    scores = generation_metrics([reordered, different, ""], {climb_signature(sane_climb)}, kilter_police)
+    assert scores["valid_rate"] == 2 / 3
+    assert scores["novel_rate"] == 2 / 3
+    assert scores["nearest_sampled_distance"] == pytest.approx((0 + 0.4 + 1) / 3)
 
 
 def test_plotter():

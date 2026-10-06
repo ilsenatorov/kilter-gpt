@@ -1,4 +1,5 @@
 import math
+import re
 from collections import Counter
 from typing import Iterable
 
@@ -40,14 +41,16 @@ class KilterPolice:
 
     def check(self, frames: str) -> bool:
         """Check if the climb is valid. True if valid, False otherwise."""
+        if not re.fullmatch(r"(?:p\d+r\d+)*", frames):
+            return False
         colors = []
-        for frame in frames.split("p")[1:]:  # split by holds
-            hold, color = frame.split("r")  # split into hold id and color
-            if int(hold) not in self.allowed_holds:
+        seen = set()
+        for frame in frames.split("p")[1:]:
+            hold, color = map(int, frame.split("r"))
+            if hold not in self.allowed_holds or hold in seen or color not in self.allowed_colors:
                 return False
-            if int(color) not in self.allowed_colors:
-                return False
-            colors.append(int(color))
+            seen.add(hold)
+            colors.append(color)
         if len(colors) < self.n_total_holds[0] or len(colors) > self.n_total_holds[1]:
             return False
         counter = Counter(colors)
@@ -60,3 +63,14 @@ class KilterPolice:
         if counter[15] < self.n_foot_holds[0] or counter[15] > self.n_foot_holds[1]:
             return False
         return True
+
+
+def validate_prompt(frames: str) -> str:
+    police = KilterPolice(Tokenizer(), (0, 2), (0, 2), n_total_holds=(0, 28))
+    if not police.check(frames):
+        raise ValueError("Prompt must contain unique valid holds and at most two starts/finishes")
+    roles = [int(role) for role in re.findall(r"p\d+r(\d+)", frames)]
+    missing = int(12 not in roles) + int(14 not in roles)
+    if len(roles) + missing > 28:
+        raise ValueError("Prompt leaves no room for both a start and a finish")
+    return frames

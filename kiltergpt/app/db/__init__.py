@@ -1,4 +1,4 @@
 """Place here all db models."""
 
-from .client import supabase_client
-from .kilter import KilterClimbStats, GenerationMetadata, GeneratedClimbFeedback
+from .client import get_supabase_client
+from .kilter import GeneratedClimbFeedback, GenerationMetadata, KilterClimbStats
