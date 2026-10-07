@@ -46,7 +46,7 @@ checkpoint = L.callbacks.ModelCheckpoint(monitor="val/mae", mode="min")
 trainer = L.Trainer(
     max_epochs=config.epochs,
     logger=L.loggers.WandbLogger(project="kilter-gpt", job_type="grade-predictor", config=config),
-    callbacks=[checkpoint, L.callbacks.EarlyStopping(monitor="val/mae", patience=5)],
+    callbacks=[checkpoint],  # no early stopping: val/mae is noisy until the cosine schedule decays the lr
     gradient_clip_val=1.0,
 )
 trainer.fit(GradePredictor(config), datamodule=dm)
