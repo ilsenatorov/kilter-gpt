@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `DynamicBatchSampler` computed token budgets from the wrong rows after bucket shuffling.
 - The train set was never shuffled (`KilterDataModule(shuffle=False)` by default), so every epoch walked the CSVs in ascent-count order.
+- `DynamicBatchSampler` kept the length buckets contiguous after bucket shuffling, so an epoch walked one climb length at a time. Batch order is now shuffled too, and a too-long first climb no longer yields an empty batch.
 
 ## 0.4.0 - 2024-10-01
 

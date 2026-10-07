@@ -1,3 +1,5 @@
+from itertools import pairwise
+
 import pandas as pd
 import pytest
 import torch
@@ -206,12 +208,16 @@ def test_batch_sampler(dataset):
 def test_batch_sampler_after_bucket_shuffle(tmp_path, tokenizer):
     holds = Tokenizer.hold_tokens()
     frames = [
-        "p1100r12" + "".join(f"{h}r13" for h in holds[1 : 1 + n]) + "p1500r14" for n in range(2, 22) for _ in range(5)
+        "p1100r12" + "".join(f"{h}r13" for h in holds[1 : 1 + n]) + "p1500r14" for n in range(2, 22) for _ in range(20)
     ]
     pd.DataFrame({"frames": frames, "angle": 40, "difficulty_average": 20}).to_csv(tmp_path / "mixed.csv", index=False)
     dataset = KilterDataset(tmp_path / "mixed.csv", tokenizer)  # bucket shuffle permutes index labels
-    for batch in DynamicBatchSampler(dataset, 40, shuffle=True):
+    batches = list(DynamicBatchSampler(dataset, 40, shuffle=True))
+    for batch in batches:
         assert len(batch) == 1 or sum(dataset.df.length.iloc[idx] for idx in batch) <= 40
+    lengths = [dataset.df.length.iloc[batch[0]] for batch in batches]
+    runs = sum(a != b for a, b in pairwise(lengths)) + 1
+    assert runs > len(set(lengths))  # batches of one length are spread out, not walked bucket by bucket
 
 
 def test_legacy_quality_scale():
