@@ -5,7 +5,6 @@ import lightning as L
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from fastapi import FastAPI
 
 from .. import __version__
 from ..data.datasets import climb_signature
@@ -13,6 +12,7 @@ from ..data.tokenizer import Tokenizer
 from ..utils import Plotter, WarmupCosineSchedule
 from ..utils.metrics import generation_metrics
 from ..utils.utils import KilterPolice, validate_prompt
+from .grade import GradePredictor
 
 
 class LayerNorm(nn.Module):
@@ -103,6 +103,8 @@ class GPT(L.LightningModule):
         self.config = config
         self.angle_proj = nn.Linear(1, self.config.n_embed)
         self.grade_proj = nn.Linear(1, self.config.n_embed)
+        # Learned "no grade" embedding for classifier-free guidance; old checkpoints were trained without it
+        self.null_grade = nn.Parameter(torch.zeros(config.n_embed)) if getattr(config, "p_uncond", 0) > 0 else None
 
         self.transformer = nn.ModuleDict(
             dict(
@@ -128,15 +130,20 @@ class GPT(L.LightningModule):
         elif isinstance(module, nn.Embedding):
             torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
 
-    def forward(self, idx, angle, grade):
-        x = self.embed(idx, angle, grade)
+    def forward(self, idx, angle, grade, uncond=None):
+        x = self.embed(idx, angle, grade, uncond)
         logits = self.lm_head(x)
         return logits
 
-    def embed(self, idx, angle, grade):
+    def embed(self, idx, angle, grade, uncond=None):
+        """uncond: optional (B,) bool mask replacing the grade with the null embedding"""
         angle = self.angle_proj(angle.unsqueeze(-1))
         grade = self.grade_proj(grade.unsqueeze(-1))
         b, t = idx.size()
+        if uncond is None and self.training and self.null_grade is not None:
+            uncond = torch.rand(b, device=idx.device) < self.config.p_uncond
+        if uncond is not None:
+            grade = torch.where(uncond.view(b, 1, 1), self.null_grade, grade)
         pos = torch.arange(0, t, dtype=torch.long, device=self.device)  # shape (t)
         tok_emb = self.transformer.wte(idx)  # token embeddings of shape (b, t, n_embd)
         pos_emb = self.transformer.wpe(pos)  # position embeddings of shape (t, n_embd)
@@ -176,8 +183,8 @@ class GPTModel(L.LightningModule):
             loss = F.binary_cross_entropy_with_logits(logits, targets, reduction="mean")
         return loss
 
-    def forward(self, x, angle, grade):
-        logits = self.model.forward(x, angle, grade)
+    def forward(self, x, angle, grade, uncond=None):
+        logits = self.model.forward(x, angle, grade, uncond)
         return logits
 
     def shared_step(self, batch, name: str):
@@ -196,28 +203,41 @@ class GPTModel(L.LightningModule):
 
     def on_test_epoch_start(self) -> None:
         torch.manual_seed(42)
-        self.test_generated = {0.3: [], 0.5: [], 0.7: []}
+        self.test_generated = {(temp, cfg): [] for temp in (0.3, 0.5, 0.7) for cfg in self.cfg_scales}
+        self.test_conditions = []
         self.test_reference = {climb_signature(frames) for frames in self.trainer.datamodule.train.df.frames}
         self.test_police = KilterPolice(self.tokenizer, (1, 2), (1, 2), n_total_holds=(4, 28))
 
     def test_step(self, batch, batch_idx):
         x, angle, grade, y = batch
         self.log("test/loss", self.get_loss(self(y[:, :-1], angle, grade), y[:, 1:]))
-        for temp in self.test_generated:
-            generated = self.generate(x.squeeze(0), angle.squeeze(0), grade.squeeze(0), temp, p=0.8)
-            self.test_generated[temp].append(self.tokenizer.decode(generated.detach().cpu(), clean=True))
+        self.test_conditions.append((round(angle.item() * 70), grade.item() * len(self.tokenizer.grade_tokens())))
+        for temp, cfg in self.test_generated:
+            generated = self.generate(x.squeeze(0), angle.squeeze(0), grade.squeeze(0), temp, p=0.8, cfg_scale=cfg)
+            self.test_generated[temp, cfg].append(self.tokenizer.decode(generated.detach().cpu(), clean=True))
             self._gen_logits.clear()
 
-    def _get_fixed_prompt_diversity(self, temp: float):
+    @property
+    def cfg_scales(self) -> list[float]:
+        return getattr(self.config, "cfg_scales", [1.0])
+
+    def _get_fixed_prompt_diversity(self, temp: float, cfg: float):
         n_runs = 4 if self.config.n_embed < 32 else 16
-        climbs = {climb_signature(self.generate_from_string("p1387r14", 40, "7a", temp, 0.8)) for _ in range(n_runs)}
+        climbs = {
+            climb_signature(self.generate_from_string("p1387r14", 40, "7a", temp, 0.8, cfg)) for _ in range(n_runs)
+        }
         return len(climbs) / n_runs
 
     def on_test_epoch_end(self) -> None:
-        for temp, generated in self.test_generated.items():
-            prefix = f"test/temp={temp}"
+        grade_predictor = None
+        if getattr(self.config, "grade_predictor", None):
+            grade_predictor = GradePredictor.load_checkpoint(self.config.grade_predictor).to(self.device).eval()
+        for (temp, cfg), generated in self.test_generated.items():
+            prefix = f"test/temp={temp}/cfg={cfg}"
             scores = generation_metrics(generated, self.test_reference, self.test_police)
-            scores["fixed_prompt_unique_rate"] = self._get_fixed_prompt_diversity(temp)
+            scores["fixed_prompt_unique_rate"] = self._get_fixed_prompt_diversity(temp, cfg)
+            if grade_predictor is not None:
+                scores["grade_mae"] = grade_predictor.grade_mae(generated, self.test_conditions, self.test_police)
             self.log_dict({f"{prefix}/{name}": score for name, score in scores.items()})
 
     # TODO add tests
@@ -285,13 +305,21 @@ class GPTModel(L.LightningModule):
         grade: torch.Tensor,
         temperature: float,
         p: float,
+        cfg_scale: float = 1.0,
     ) -> torch.Tensor:
         """Generate a single token
         prompt: torch.LongTensor: input_ids
+        cfg_scale: classifier-free guidance weight on the grade, 1.0 is plain conditional sampling
         """
         last_token = prompt[-1]
-        logits = self.forward(prompt.unsqueeze(0), angle.unsqueeze(0), grade.unsqueeze(0)).squeeze(0)
-        logits = logits[-1, :] / temperature  # Get logits for the last position
+        if cfg_scale == 1.0:
+            logits = self.forward(prompt.unsqueeze(0), angle.unsqueeze(0), grade.unsqueeze(0))[0, -1]
+        else:
+            # conditional and unconditional passes in one batch of 2
+            uncond = torch.tensor([False, True], device=self.device)
+            logits = self.forward(prompt.expand(2, -1), angle.expand(2, -1), grade.expand(2, -1), uncond)[:, -1]
+            logits = logits[1] + cfg_scale * (logits[0] - logits[1])
+        logits = logits / temperature
         # After color/BOS token only hold or EOS token can be generated
         if last_token in self.tokenizer.color_token_ids.to(self.device) or last_token == self.tokenizer.bos_token_id:
             mask = torch.zeros_like(logits, dtype=torch.bool)
@@ -331,23 +359,40 @@ class GPTModel(L.LightningModule):
             logits[~mask] = float("-inf")
         return self._sample_from_logits(logits, p)
 
+    @torch.no_grad()
     def generate(
-        self, prompt: torch.Tensor, angle: torch.Tensor, grade: torch.Tensor, temperature: float, p: float
+        self,
+        prompt: torch.Tensor,
+        angle: torch.Tensor,
+        grade: torch.Tensor,
+        temperature: float,
+        p: float,
+        cfg_scale: float = 1.0,
     ) -> torch.Tensor:
-        """Generate until EOS token is reached (not batched)"""
-        next_prompt = None
-        while next_prompt != self.tokenizer.eos_token_id:
-            context = prompt[-self.config.context_len :]
-            next_prompt = self._generate_token(context, angle, grade, temperature=temperature, p=p)
-            prompt = torch.cat((prompt, next_prompt), dim=0)
-            # Stop when you get to full context window (30 holds)
-            if prompt.size(0) >= self.config.context_len - 1:
-                prompt = torch.cat(
-                    (prompt, torch.tensor(self.tokenizer.eos_token_id, device=self.device).unsqueeze(0)),
-                    dim=0,
+        """Generate until EOS token is reached (not batched). Always samples in eval mode:
+        train mode would add dropout and randomly drop the grade (p_uncond)."""
+        if cfg_scale != 1.0 and self.model.null_grade is None:
+            raise ValueError("cfg_scale != 1 needs a model trained with p_uncond > 0")
+        was_training = self.training
+        self.eval()
+        try:
+            next_prompt = None
+            while next_prompt != self.tokenizer.eos_token_id:
+                context = prompt[-self.config.context_len :]
+                next_prompt = self._generate_token(
+                    context, angle, grade, temperature=temperature, p=p, cfg_scale=cfg_scale
                 )
-                break
-        return prompt
+                prompt = torch.cat((prompt, next_prompt), dim=0)
+                # Stop when you get to full context window (30 holds)
+                if prompt.size(0) >= self.config.context_len - 1:
+                    prompt = torch.cat(
+                        (prompt, torch.tensor(self.tokenizer.eos_token_id, device=self.device).unsqueeze(0)),
+                        dim=0,
+                    )
+                    break
+            return prompt
+        finally:
+            self.train(was_training)
 
     @torch.jit.export
     def generate_from_string(
@@ -357,15 +402,18 @@ class GPTModel(L.LightningModule):
         grade: str | float,
         temperature: float = 0.7,
         p: float = 0.8,
+        cfg_scale: float = 1.0,
     ) -> str:
         """Generate a climb from a string of frames, angle, and grade"""
         validate_prompt(frames)
         if not math.isfinite(temperature) or temperature <= 0 or not math.isfinite(p) or not 0 < p <= 1:
             raise ValueError("Temperature must be positive and top-p must be in (0, 1]")
+        if not math.isfinite(cfg_scale) or cfg_scale < 0:
+            raise ValueError("cfg_scale must be a non-negative number")
         self._gen_logits = []
         x, angle, grade = self.tokenizer.encode(frames, angle, grade, eos=False)
         x, angle, grade = x.to(self.device), angle.to(self.device).unsqueeze(0), grade.to(self.device).unsqueeze(0)
-        generated = self.generate(x, angle, grade, temperature=temperature, p=p)
+        generated = self.generate(x, angle, grade, temperature=temperature, p=p, cfg_scale=cfg_scale)
         return self.tokenizer.decode(generated, clean=True)
 
     def generate_generation_fig(
@@ -423,47 +471,3 @@ class GPTModel(L.LightningModule):
         artifact = api.artifact(checkpoint_path)
         artifact_dir = artifact.download()
         return GPTModel.load_checkpoint(f"{artifact_dir}/model.ckpt")
-
-    def get_entropy(self) -> float:
-        """Calculate the entropy of the last generated climb"""
-        logits = torch.stack(self._gen_logits).cpu().detach() + 1e-10
-        logits = logits[range(0, logits.size(0), 2)]
-        log_probs = torch.log2(logits)
-        entropy = -torch.sum(log_probs * logits)
-        return round(entropy.item(), 3)
-
-    def get_fastapi_app(self) -> FastAPI:
-        """Return a FastAPI app that serves the model. Can be launched with gunicorn."""
-        from threading import Lock
-
-        from fastapi import FastAPI, HTTPException
-
-        from ..utils import Hasher
-
-        app = FastAPI()
-        self.eval()
-        self.to("cpu")
-        hasher = Hasher.from_json()
-        generation_lock = Lock()
-
-        @app.get("/generate")
-        def generate(frames: str, angle: int, grade: str, temperature: float = 0.7, p: float = 0.8):
-            try:
-                with generation_lock, torch.no_grad():
-                    result = self.generate_from_string(frames, angle, grade, temperature, p)
-                    entropy = self.get_entropy()
-            except ValueError as exc:
-                raise HTTPException(status_code=422, detail=str(exc)) from exc
-            return {
-                "climb": result,
-                "prompt": frames,
-                "angle": angle,
-                "grade": grade,
-                "temperature": temperature,
-                "p": p,
-                "name": hasher.encode(result),
-                "version": __version__,
-                "entropy": entropy,
-            }
-
-        return app

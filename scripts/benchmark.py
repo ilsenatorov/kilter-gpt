@@ -9,6 +9,10 @@ from kiltergpt.models import GPTModel
 parser = argparse.ArgumentParser()
 parser.add_argument("checkpoints", nargs="+", help="Local checkpoints to compare on the same post-2024 holdout")
 parser.add_argument("--data_dir", default="data/processed-broad-2026")
+parser.add_argument("--grade_predictor", default=None, help="GradePredictor checkpoint for grade_mae")
+parser.add_argument(
+    "--cfg_scales", type=float, nargs="+", default=None, help="Override the checkpoint's guidance scales"
+)
 parser.add_argument("--limit_test_batches", type=int, default=None, help="For a quick benchmark smoke test")
 args = parser.parse_args()
 
@@ -20,5 +24,9 @@ for checkpoint in args.checkpoints:
         enable_progress_bar=False,
         **({"limit_test_batches": args.limit_test_batches} if args.limit_test_batches else {}),
     )
-    scores = trainer.test(GPTModel.load_checkpoint(checkpoint), datamodule=dm, verbose=False)[0]
+    model = GPTModel.load_checkpoint(checkpoint)
+    model.config.grade_predictor = args.grade_predictor
+    if args.cfg_scales:
+        model.config.cfg_scales = args.cfg_scales
+    scores = trainer.test(model, datamodule=dm, verbose=False)[0]
     print(json.dumps({"checkpoint": checkpoint, "scores": scores}, sort_keys=True))

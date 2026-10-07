@@ -1,7 +1,9 @@
 import hashlib
 import math
 from pathlib import Path
+from typing import Callable
 
+import numpy as np
 import pandas as pd
 import torch
 import torch.nn.functional as F
@@ -19,8 +21,25 @@ def climb_split(frames: str) -> str:
     return "train" if bucket < 90 else "val" if bucket < 99 else "test"
 
 
+def legacy_quality_scale(new: pd.Series, old: pd.Series) -> Callable[[pd.Series], np.ndarray]:
+    """Quantile map from snapshot quality to the legacy 1-3 scale, fit on climbs rated in both.
+    The snapshot mixes the legacy 3-star and the newer 5-star ratings inside each average, so there is no exact
+    per-climb conversion; matching quantiles makes a quality threshold drop the same share of climbs in both."""
+    pairs = pd.DataFrame({"new": new, "old": old}).dropna()
+    qs = np.linspace(0, 1, 101)
+    quantiles = pd.Series(np.quantile(pairs["old"], qs)).groupby(np.quantile(pairs["new"], qs)).mean()
+    return lambda quality: np.interp(quality, quantiles.index, quantiles.to_numpy())
+
+
 def restore_legacy_stats(df: pd.DataFrame, old: pd.DataFrame) -> pd.DataFrame:
     df = df.merge(old, on=["uuid", "angle"], how="left", suffixes=("", "_old"))
+    same_climb = df["frames"].eq(df["frames_old"])
+    rated = df["ascensionist_count"].gt(0)
+    to_legacy = legacy_quality_scale(
+        df.loc[rated & same_climb & df["ascensionist_count_old"].gt(0), "quality_average"],
+        df.loc[rated & same_climb & df["ascensionist_count_old"].gt(0), "quality_average_old"],
+    )
+    df.loc[rated, "quality_average"] = to_legacy(df.loc[rated, "quality_average"])
     restored = df["ascensionist_count"].eq(0) & df["ascensionist_count_old"].gt(0) & df["frames"].eq(df["frames_old"])
     df["stats_source"] = "2026"
     df.loc[restored, "stats_source"] = "2024"

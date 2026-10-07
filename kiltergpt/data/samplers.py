@@ -18,7 +18,7 @@ class DynamicBatchSampler(BatchSampler):
         batch = []
         num_tokens = 0
         for idx in range(len(self.dataset)):
-            sample_length = self.dataset.df.length[idx]
+            sample_length = self.dataset.df.length.iloc[idx]  # positional, like KilterDataset.__getitem__
             if num_tokens + sample_length > self.max_num_tokens:
                 yield batch
                 batch = []

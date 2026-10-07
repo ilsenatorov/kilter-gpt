@@ -14,14 +14,39 @@ The `db.sqlite3` file is downloaded with git LFS, so you need to have it install
 Run `git lfs install` to install it, then `git lfs pull` to download the file.
 The file contains the data for the climbs, which is then processed into a csv file for training.
 If you want the updated version of the database, you can download it from the kitlerboard apk.
-Run `uv run python scripts/preprocess.py` for the legacy database. For the downloaded 2026 layout-1 snapshot, run `uv run python scripts/preprocess.py --sqlite_path data/boardsesh-kilter-layout1-2026-10-03.db --out_dir data/processed-broad-2026 --broad`. This keeps zero-ascent climbs but excludes climbed routes rated below 2. Matching reset climbs recover grades and ratings from `data/db.sqlite3`. Splits are fixed by hold/role pattern (90/9/1); `test-post-2024.csv` contains only held-out climbs absent from that legacy database. Existing `data/finetune` CSVs need regeneration before reuse.
+Run `uv run python scripts/preprocess.py` for the legacy database. For the downloaded 2026 layout-1 snapshot, run `uv run python scripts/preprocess.py --sqlite_path data/boardsesh-kilter-layout1-2026-10-03.db --out_dir data/processed-broad-2026 --broad`. This keeps zero-ascent climbs but excludes climbed routes rated below 2. The snapshot's quality averages mix the legacy 3-star and the newer 5-star ratings, so they are quantile-mapped onto the legacy 1–3 scale, fitted on climbs rated in both databases; a threshold then removes the same share of climbs from both sources. Matching reset climbs recover grades and ratings from `data/db.sqlite3`. Splits are fixed by hold/role pattern (90/9/1); `test-post-2024.csv` contains only held-out climbs absent from that legacy database. Existing `data/finetune` CSVs need regeneration before reuse.
 
 ## Training
 
 Run `uv run python scripts/train.py --data_dir data/processed-broad-2026` to train on the broad dataset. Defaults use FP32 and 4096 tokens per batch on an RTX 2080 SUPER (FP16 skipped optimizer updates in the smoke test). For an offline smoke test: `WANDB_MODE=disabled uv run python scripts/train.py --data_dir data/processed-broad-2026 --subset 0.001 --epochs 1 --only_train true`. To compare local checkpoints on the same post-2024 holdout: `uv run python scripts/benchmark.py OLD.ckpt NEW.ckpt`.
+Training drops the grade 10% of the time (`--p_uncond`) so generation can use classifier-free guidance: `generate_from_string(..., cfg_scale=2.0)` pushes climbs harder toward the requested grade (1.0 = plain conditional).
+
+To measure grade fidelity, train the grade predictor on the same split: `uv run python scripts/train_grade.py`. Its `test/mae` on real climbs is the floor. Pass its checkpoint as `--grade_predictor` to `train.py` or `benchmark.py` to log `test/temp=T/cfg=W/grade_mae`, the mean absolute difference in difficulty units (1 unit ≈ one Font subgrade) between the requested grade and the predicted grade of valid generated climbs. `sweep.yaml` is a grid over model sizes ranked by this metric, using 30-epoch runs tested on a random 30% of the test set (`--test_subset`). It expects the checkpoint at `data/grade_predictor.ckpt`.
+
 You can adjust the hyperparameters in the script.
 By default the dataset is loaded from `data/processed` folder which contains the three csv files for train, val and test.
 By defauly it's generated from the `python scripts/preprocess.py` script.
+
+## Generating climbs
+
+```python
+from kiltergpt.models import GPTModel
+from kiltergpt.utils import Plotter
+
+model = GPTModel.load_checkpoint("path/to/model.ckpt")  # or GPTModel.load_from_wandb("ilsenatorov/kilter-gpt/model-<run_id>:v0")
+frames = model.generate_from_string("p1387r14", angle=40, grade="7a", temperature=0.7, p=0.8, cfg_scale=2.0)
+image = Plotter().plot_climb(frames)  # RGB array of the board with the climb drawn on it
+```
+
+- `frames`: holds the climb must contain, as `p<placement>r<role>` pairs. Roles: `r12` start, `r13` hand, `r14` finish, `r15` foot. Use `""` to let the model pick every hold. Holds must be unique placements of the original layout (1073–1599, excluding 1396–1446). A prompt can have at most 2 starts, 2 finishes and 28 holds. An invalid prompt raises `ValueError`.
+- `angle`: board angle in degrees (int).
+- `grade`: a Font grade from `Tokenizer.grade_tokens()` (`"6b+"`, `"7a"`, …), or a float in Kilter difficulty units (16 = 6a/V3, 22 = 7a/V6).
+- `temperature`, `p`: sampling temperature and top-p. Lower values give more conventional climbs.
+- `cfg_scale`: classifier-free guidance strength on the grade. `1.0` is plain conditional sampling. `1.5`–`3` follows the grade more closely but reduces variety. Guidance only works on checkpoints trained with `--p_uncond > 0` (the default now); older checkpoints, including `kiltergpt.BEST_MODEL`, raise `ValueError` for anything other than `1.0`. To pick a value, run `scripts/benchmark.py CKPT --grade_predictor data/grade_predictor.ckpt --cfg_scales 1 1.5 2 3` and compare `grade_mae` against `novel_rate`.
+
+The result keeps the prompt holds and always has 1–2 starts, 1–2 finishes and 4–28 holds. Generation always samples in eval mode without gradients, so you don't need to call `.eval()` first. `model.generate_generation_fig(prompt, angle, grade, ...)` also saves a GIF of the model's hold probabilities at each step.
+
+On-device generation lives in `../kilter-gpt-android`. It runs an ONNX export of the model with inputs `tokens` (`[BOS]` = 1, then token ids), `angle` (`angle / 70`) and `grade` (`(grade index + 1) / 39`), and its sampling loop has to mirror `GPTModel._generate_token`: the hold/role masks, top-p, and guidance. To use guidance on-device, the export also needs the `uncond` input.
 
 ## TODO
 

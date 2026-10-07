@@ -1,10 +1,10 @@
 from argparse import Namespace
 
 import pytest
-from fastapi.testclient import TestClient
+import torch
 
 from kiltergpt.data.tokenizer import Tokenizer
-from kiltergpt.models.gpt import GPTModel
+from kiltergpt.models import GPTModel, GradePredictor
 from kiltergpt.utils import KilterPolice
 
 
@@ -44,22 +44,39 @@ def test_invalid_prompt(sample_config, prompt):
         model.generate_from_string(prompt, 40, "7a")
 
 
-def test_app(sample_config):
+def test_cfg_generate(sample_config):
     tokenizer = Tokenizer()
-    model = GPTModel(sample_config, tokenizer)
-    app = model.get_fastapi_app()
-    sample_prompt = "p1234r12p1333r14"
-    client = TestClient(app)
-    response = client.get(
-        "/generate",  # Update the URL path to match the endpoint in your FastAPI application
-        params={"frames": sample_prompt, "angle": 40, "grade": "7a", "temperature": 0.1, "p": 0.7},
+    model = GPTModel(Namespace(**vars(sample_config), p_uncond=0.1), tokenizer).eval()
+    generated = model.generate_from_string("p1234r12", 40, "7a", cfg_scale=2.0)
+    assert KilterPolice(tokenizer, (1, 2), (1, 2), n_total_holds=(4, 28)).check(generated)
+    # null grade replaces the grade entirely
+    x, angle = torch.tensor([[1, 100, 6]]), torch.tensor([[40 / 70]])
+    uncond = torch.tensor([True])
+    torch.testing.assert_close(
+        model(x, angle, torch.tensor([[0.2]]), uncond), model(x, angle, torch.tensor([[0.8]]), uncond)
     )
-    assert response.status_code == 200
-    assert sample_prompt in response.json()["climb"]
-    assert (
-        client.get("/generate", params={"frames": "p1234r12p1234r14", "angle": 40, "grade": "7a"}).status_code == 422
-    )
-    assert (
-        client.get("/generate", params={"frames": sample_prompt, "angle": 40, "grade": "7a", "p": 0}).status_code
-        == 422
-    )
+    # checkpoints trained without grade dropout can't guide
+    with pytest.raises(ValueError):
+        GPTModel(sample_config, tokenizer).generate_from_string("p1234r12", 40, "7a", cfg_scale=2.0)
+
+
+def test_grade_predictor():
+    config = Namespace(n_embed=8, n_head=2, n_layer=1, dropout=0.0, lr=1e-3, wd=0.0, total_steps=10)
+    model = GradePredictor(config).eval()
+    climb, longer = "p1100r12p1200r13p1300r14", "p1100r12p1200r13p1250r13p1300r14p1350r15"
+    alone = model.predict([climb], [40])
+    batched = model.predict([climb, longer], [40, 40])
+    shuffled = model.predict(["p1300r14p1100r12p1200r13"], [40])
+    torch.testing.assert_close(alone, batched[:1])  # padding is masked
+    torch.testing.assert_close(alone, shuffled)  # hold order doesn't matter
+    police = KilterPolice(Tokenizer(), (1, 2), (1, 2), n_total_holds=(2, 28))
+    assert model.grade_mae([climb, longer], [(40, 20.0), (40, 25.0)], police) >= 0
+
+
+def test_generate_ignores_train_mode(sample_config):
+    model = GPTModel(Namespace(**{**vars(sample_config), "dropout": 0.5}, p_uncond=0.5), Tokenizer())
+    torch.manual_seed(0)
+    in_train_mode = model.generate_from_string("p1234r12", 40, "7a", cfg_scale=2.0)
+    assert model.training  # mode restored
+    torch.manual_seed(0)
+    assert model.eval().generate_from_string("p1234r12", 40, "7a", cfg_scale=2.0) == in_train_mode

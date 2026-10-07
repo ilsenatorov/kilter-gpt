@@ -1,6 +1,7 @@
 import pandas as pd
 import pytest
 import torch
+from torch.utils.data import RandomSampler
 
 from kiltergpt.data.datamodules import KilterDataModule
 from kiltergpt.data.datasets import (
@@ -8,6 +9,7 @@ from kiltergpt.data.datasets import (
     climb_signature,
     climb_split,
     deduplicate_climbs,
+    legacy_quality_scale,
     post_archive_holdout,
     restore_legacy_stats,
     split_by_climb,
@@ -180,6 +182,7 @@ def test_datamodule(dataset_dir):
     datamodule.setup()
     batch = next(iter(datamodule.train_dataloader()))
     assert len(batch) == 4
+    assert isinstance(datamodule.train_dataloader().sampler, RandomSampler)  # CSVs are sorted by ascents
     assert datamodule.train.eval is False
     assert datamodule.val.eval is False
     assert datamodule.test.eval is True
@@ -192,9 +195,28 @@ def test_datamodule(dataset_dir):
 def test_batch_sampler(dataset):
     sampler = DynamicBatchSampler(dataset, 100)
     for batch in sampler:
-        assert sum(dataset.df.length[idx] for idx in batch) <= 100
+        assert sum(dataset.df.length.iloc[idx] for idx in batch) <= 100
     assert len(sampler) == 1
     sampler = DynamicBatchSampler(dataset, 13)
     for batch in sampler:
-        assert sum(dataset.df.length[idx] for idx in batch) <= 13
+        assert sum(dataset.df.length.iloc[idx] for idx in batch) <= 13
     assert len(sampler) == 2
+
+
+def test_batch_sampler_after_bucket_shuffle(tmp_path, tokenizer):
+    holds = Tokenizer.hold_tokens()
+    frames = [
+        "p1100r12" + "".join(f"{h}r13" for h in holds[1 : 1 + n]) + "p1500r14" for n in range(2, 22) for _ in range(5)
+    ]
+    pd.DataFrame({"frames": frames, "angle": 40, "difficulty_average": 20}).to_csv(tmp_path / "mixed.csv", index=False)
+    dataset = KilterDataset(tmp_path / "mixed.csv", tokenizer)  # bucket shuffle permutes index labels
+    for batch in DynamicBatchSampler(dataset, 40, shuffle=True):
+        assert len(batch) == 1 or sum(dataset.df.length.iloc[idx] for idx in batch) <= 40
+
+
+def test_legacy_quality_scale():
+    old = pd.Series([1.0, 1.5, 2.0, 2.5, 3.0] * 20)
+    new = old * 2 - 1 + pd.Series([0.0, 0.0, 0.0, 0.0, 2.0] * 20)  # 1-5 scale, top bucket stretched
+    to_legacy = legacy_quality_scale(new, old)
+    assert to_legacy(new.iloc[:5]).tolist() == pytest.approx([1.0, 1.5, 2.0, 2.5, 3.0])
+    assert to_legacy(pd.Series([0.0, 99.0])).tolist() == [1.0, 3.0]  # clipped to the legacy range

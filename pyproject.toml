@@ -16,10 +16,6 @@ dependencies = [
     "pandas",
     "matplotlib",
     "numpy==1.25.2",
-    "fastapi",
-    "uvicorn",
-    "supabase",
-    "pydantic-settings",
 ]
 
 [dependency-groups]

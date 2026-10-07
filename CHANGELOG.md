@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Added
+
+- Classifier-free guidance on the grade (`--p_uncond` in training, `cfg_scale` in generation).
+- Grade predictor (`scripts/train_grade.py`) and `grade_mae` test metric.
+
+### Changed
+
+- Snapshot quality averages are quantile-mapped to the legacy 1–3 scale before filtering.
+
+### Removed
+
+- The FastAPI/Supabase web service (`kiltergpt/app`, `__main__.py`, `GPTModel.get_fastapi_app`, `Hasher`); the model now runs on-device in the Android app.
+
+### Fixed
+
+- `DynamicBatchSampler` computed token budgets from the wrong rows after bucket shuffling.
+- The train set was never shuffled (`KilterDataModule(shuffle=False)` by default), so every epoch walked the CSVs in ascent-count order.
+
 ## 0.4.0 - 2024-10-01
 
 ### Added

@@ -3,7 +3,7 @@ import torch
 
 from kiltergpt.data.datasets import climb_signature
 from kiltergpt.data.tokenizer import Tokenizer
-from kiltergpt.utils import Hasher, KilterPolice, Plotter, WarmupCosineSchedule, str_to_bool
+from kiltergpt.utils import KilterPolice, Plotter, WarmupCosineSchedule, str_to_bool
 from kiltergpt.utils.metrics import generation_metrics
 
 
@@ -95,11 +95,3 @@ def test_scheduler():
         assert base_lr * end_lr_coeff <= lr <= base_lr
     for lr in lrs[100:]:
         assert lr == base_lr * end_lr_coeff
-
-
-def test_hasher():
-    h = Hasher.from_json()
-    inp = "p1234r12p1235r13p1236r14p1237r15"
-    assert h.encode(inp) is not None
-    assert h.encode(inp) == h.encode(inp)  # deterministic
-    assert h.encode(inp) == h.encode("p1236r14p1237r15p1234r12p1235r13")  # order invariant

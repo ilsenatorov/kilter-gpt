@@ -6,12 +6,10 @@
 !.python-version
 data/*
 !data/db.sqlite3
-!data/words.json
 __*__
 wandb/
 kilter-gpt/
 artifacts/*
-supabase/
 *.ipynb
 *.egg-info
 *.sh
