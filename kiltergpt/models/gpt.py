@@ -14,6 +14,8 @@ from ..utils.metrics import generation_metrics
 from ..utils.utils import KilterPolice, validate_prompt
 from .grade import GradePredictor
 
+DEFAULT_CFG_SCALE = 3.0  # with temperature 1 and top-p 1: grade error close to temperature 0.7 without losing holds
+
 
 class LayerNorm(nn.Module):
     """LayerNorm but with an optional bias. PyTorch doesn't support simply bias=False"""
@@ -400,11 +402,15 @@ class GPTModel(L.LightningModule):
         frames: str,
         angle: int,
         grade: str | float,
-        temperature: float = 0.7,
-        p: float = 0.8,
-        cfg_scale: float = 1.0,
+        temperature: float = 1.0,
+        p: float = 1.0,
+        cfg_scale: float | None = None,
     ) -> str:
-        """Generate a climb from a string of frames, angle, and grade"""
+        """Generate a climb from a string of frames, angle, and grade.
+        Defaults match real climbs: lower temperature or top-p drops foot holds first and cuts climbs short.
+        cfg_scale defaults to 3.0 on checkpoints trained with grade dropout and to 1.0 on older ones."""
+        if cfg_scale is None:
+            cfg_scale = DEFAULT_CFG_SCALE if self.model.null_grade is not None else 1.0
         validate_prompt(frames)
         if not math.isfinite(temperature) or temperature <= 0 or not math.isfinite(p) or not 0 < p <= 1:
             raise ValueError("Temperature must be positive and top-p must be in (0, 1]")
@@ -421,8 +427,8 @@ class GPTModel(L.LightningModule):
         prompt: str,
         angle: int,
         grade: str,
-        temperature: float = 0.7,
-        p: float = 0.8,
+        temperature: float = 1.0,
+        p: float = 1.0,
         name: str | None = None,
         colorscheme: str = "RdPu",
         cutoff: float = 0.1,

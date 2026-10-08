@@ -11,9 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Classifier-free guidance on the grade (`--p_uncond` in training, `cfg_scale` in generation).
 - Grade predictor (`scripts/train_grade.py`) and `grade_mae` test metric.
+- `scripts/export_onnx.py` exports a checkpoint for the Android app, with the `uncond` input for guidance, and checks it against PyTorch.
 
 ### Changed
 
+- `generate_from_string` now defaults to temperature 1, top-p 1 and `cfg_scale` 3 (1 on checkpoints without guidance). The old 0.7 / 0.8 defaults cut climbs to about 8 holds and dropped most foot holds.
 - Snapshot quality averages are quantile-mapped to the legacy 1–3 scale before filtering.
 
 ### Removed

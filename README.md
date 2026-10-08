@@ -34,24 +34,24 @@ from kiltergpt.models import GPTModel
 from kiltergpt.utils import Plotter
 
 model = GPTModel.load_checkpoint("path/to/model.ckpt")  # or GPTModel.load_from_wandb("ilsenatorov/kilter-gpt/model-<run_id>:v0")
-frames = model.generate_from_string("p1387r14", angle=40, grade="7a", temperature=0.7, p=0.8, cfg_scale=2.0)
+frames = model.generate_from_string("p1387r14", angle=40, grade="7a")  # temperature 1, top-p 1, cfg_scale 3
 image = Plotter().plot_climb(frames)  # RGB array of the board with the climb drawn on it
 ```
 
 - `frames`: holds the climb must contain, as `p<placement>r<role>` pairs. Roles: `r12` start, `r13` hand, `r14` finish, `r15` foot. Use `""` to let the model pick every hold. Holds must be unique placements of the original layout (1073–1599, excluding 1396–1446). A prompt can have at most 2 starts, 2 finishes and 28 holds. An invalid prompt raises `ValueError`.
 - `angle`: board angle in degrees (int).
 - `grade`: a Font grade from `Tokenizer.grade_tokens()` (`"6b+"`, `"7a"`, …), or a float in Kilter difficulty units (16 = 6a/V3, 22 = 7a/V6).
-- `temperature`, `p`: sampling temperature and top-p. Lower values give more conventional climbs.
-- `cfg_scale`: classifier-free guidance strength on the grade. `1.0` is plain conditional sampling. `1.5`–`3` follows the grade more closely but reduces variety. Guidance only works on checkpoints trained with `--p_uncond > 0` (the default now); older checkpoints, including `kiltergpt.BEST_MODEL`, raise `ValueError` for anything other than `1.0`. To pick a value, run `scripts/benchmark.py CKPT --grade_predictor data/grade_predictor.ckpt --cfg_scales 1 1.5 2 3` and compare `grade_mae` against `novel_rate`.
+- `temperature`, `p`: sampling temperature and top-p, both `1.0` by default. At these values generated climbs match real ones (about 12 holds, 4 of them feet). Lowering either one gives more conventional hand sequences but drops foot holds first and cuts climbs short: at `0.7` / `0.8` climbs average 8 holds and under 2 feet.
+- `cfg_scale`: classifier-free guidance strength on the grade. `1.0` is plain conditional sampling; higher values follow the grade more closely and reduce variety. The default (`None`) uses `3.0` on checkpoints trained with `--p_uncond > 0` and `1.0` on older ones, including `kiltergpt.BEST_MODEL`, which raise `ValueError` for any explicit value other than `1.0`. To pick a value, run `scripts/benchmark.py CKPT --grade_predictor data/grade_predictor.ckpt --cfg_scales 1 2 3` and compare `grade_mae` against `novel_rate`.
 
 The result keeps the prompt holds and always has 1–2 starts, 1–2 finishes and 4–28 holds. Generation always samples in eval mode without gradients, so you don't need to call `.eval()` first. `model.generate_generation_fig(prompt, angle, grade, ...)` also saves a GIF of the model's hold probabilities at each step.
 
-On-device generation lives in `../kilter-gpt-android`. It runs an ONNX export of the model with inputs `tokens` (`[BOS]` = 1, then token ids), `angle` (`angle / 70`) and `grade` (`(grade index + 1) / 39`), and its sampling loop has to mirror `GPTModel._generate_token`: the hold/role masks, top-p, and guidance. To use guidance on-device, the export also needs the `uncond` input.
+On-device generation lives in `../kilter-gpt-android`. `uv run python scripts/export_onnx.py CKPT OUT.onnx` exports a checkpoint and checks the export against PyTorch. Its inputs are `tokens` (`[BOS]` = 1, then token ids), `angle` (`angle / 70`), `grade` (`(grade index + 1) / 39`) and, for checkpoints trained with `--p_uncond > 0`, `uncond` (one bool per row). The app's sampling loop has to mirror `GPTModel._generate_token`: the hold/role masks, top-p, and guidance, where the conditioned and `uncond` rows run as one batch of two. Its defaults should match `generate_from_string`.
 
 ## TODO
 
 - Add an option to select a predefined style for the climb
-- Add code to convert model to torchscript/onnx
+- ~~Add code to convert model to torchscript/onnx~~
 - Visualize the attention matrix
 - Add perplexity
 - Add benchmarking for the generation steps

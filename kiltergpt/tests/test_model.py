@@ -60,6 +60,16 @@ def test_cfg_generate(sample_config):
         GPTModel(sample_config, tokenizer).generate_from_string("p1234r12", 40, "7a", cfg_scale=2.0)
 
 
+def test_default_cfg_scale(sample_config):
+    tokenizer = Tokenizer()
+    GPTModel(sample_config, tokenizer).generate_from_string("p1234r12", 40, "7a")  # old checkpoints: unguided
+    model = GPTModel(Namespace(**vars(sample_config), p_uncond=0.1), tokenizer)
+    torch.manual_seed(0)
+    default = model.generate_from_string("p1234r12", 40, "7a")
+    torch.manual_seed(0)
+    assert default == model.generate_from_string("p1234r12", 40, "7a", cfg_scale=3.0)
+
+
 def test_grade_predictor():
     config = Namespace(n_embed=8, n_head=2, n_layer=1, dropout=0.0, lr=1e-3, wd=0.0, total_steps=10)
     model = GradePredictor(config).eval()

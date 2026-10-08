@@ -19,7 +19,13 @@ dependencies = [
 ]
 
 [dependency-groups]
-dev = ["pytest", "pytest-cov"]
+dev = [
+    "onnx>=1.23.2",
+    "onnxruntime>=1.30.0",
+    "onnxscript>=0.7.2",
+    "pytest",
+    "pytest-cov",
+]
 
 [tool.setuptools.packages.find]
 where = ["."]
