@@ -90,3 +90,17 @@ def test_generate_ignores_train_mode(sample_config):
     assert model.training  # mode restored
     torch.manual_seed(0)
     assert model.eval().generate_from_string("p1234r12", 40, "7a", cfg_scale=2.0) == in_train_mode
+
+
+@pytest.mark.parametrize("temperature", [1.0, 0.3])
+def test_role_first_generate(sample_config, temperature):
+    tokenizer = Tokenizer(role_first=True)
+    model = GPTModel(Namespace(**vars(sample_config), p_uncond=0.1), tokenizer)
+    police = KilterPolice(tokenizer, (1, 2), (1, 2), n_total_holds=(4, 28))
+    for _ in range(5):
+        generated = model.generate_from_string("p1234r12", 40, "7a", temperature=temperature, p=0.8)
+        assert generated.startswith("p1234r12")
+        assert police.check(generated)
+        tokens = tokenizer.encode(generated)[0][1:-1]
+        assert torch.isin(tokens[0::2], tokenizer.color_token_ids).all()
+        assert torch.isin(tokens[1::2], tokenizer.hold_token_ids).all()

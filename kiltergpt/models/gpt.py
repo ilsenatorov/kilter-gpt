@@ -319,8 +319,13 @@ class GPTModel(L.LightningModule):
         """Generate a single token
         prompt: torch.LongTensor: input_ids
         cfg_scale: classifier-free guidance weight on the grade, 1.0 is plain conditional sampling
+        With a role-first tokenizer, temperature and top-p only shape which hold comes next: roles and the stop
+        decision always sample at temperature 1, so lower temperatures keep the foot holds and the climb length.
         """
+        tokenizer = self.tokenizer
+        role_first = tokenizer.role_first
         last_token = prompt[-1]
+        hold_ids = tokenizer.hold_token_ids.to(self.device)
         if cfg_scale == 1.0:
             logits = self.forward(prompt.unsqueeze(0), angle.unsqueeze(0), grade.unsqueeze(0))[0, -1]
         else:
@@ -328,44 +333,38 @@ class GPTModel(L.LightningModule):
             uncond = torch.tensor([False, True], device=self.device)
             logits = self.forward(prompt.expand(2, -1), angle.expand(2, -1), grade.expand(2, -1), uncond)[:, -1]
             logits = logits[1] + cfg_scale * (logits[0] - logits[1])
-        logits = logits / temperature
-        # After color/BOS token only hold or EOS token can be generated
-        if last_token in self.tokenizer.color_token_ids.to(self.device) or last_token == self.tokenizer.bos_token_id:
-            mask = torch.zeros_like(logits, dtype=torch.bool)
-            # Only allow hold tokens and EOS token
-            mask[self.tokenizer.hold_token_ids] = True
-            mask[self.tokenizer.eos_token_id] = True
-            previously_used = prompt[torch.isin(prompt, self.tokenizer.hold_token_ids.to(self.device))]
-            mask[previously_used] = False
-            n_holds = len(previously_used)
-            if (
-                n_holds < 4
-                or not (prompt == self.tokenizer.start_token_id).any()
-                or not (prompt == self.tokenizer.finish_token_id).any()
-            ):
-                mask[self.tokenizer.eos_token_id] = False
+        # A climb can stop only between holds: after BOS or a finished (hold, role) pair
+        between_holds = last_token == tokenizer.bos_token_id or (
+            last_token in hold_ids if role_first else last_token in tokenizer.color_token_ids.to(self.device)
+        )
+        picks_hold = between_holds != role_first
+        used_holds = prompt[torch.isin(prompt, hold_ids)]
+        n_holds = len(used_holds)
+        n_starts = (prompt == tokenizer.start_token_id).sum().item()
+        n_finishes = (prompt == tokenizer.finish_token_id).sum().item()
+        mask = torch.zeros_like(logits, dtype=torch.bool)
+        if picks_hold:
+            mask[tokenizer.hold_token_ids] = True
+            mask[used_holds] = False
+        else:
+            mask[tokenizer.color_token_ids] = True
+            if n_starts >= 2:
+                mask[tokenizer.start_token_id] = False
+            if n_finishes >= 2:
+                mask[tokenizer.finish_token_id] = False
+            # leave room for the start and finish within 28 holds; role first, this role's hold isn't placed yet
+            if n_holds + role_first + (n_starts == 0) + (n_finishes == 0) > 28:
+                mask[:] = False
+                mask[tokenizer.start_token_id if n_starts == 0 else tokenizer.finish_token_id] = True
+        if between_holds:
+            mask[tokenizer.eos_token_id] = n_holds >= 4 and n_starts > 0 and n_finishes > 0
             if n_holds >= 28:
                 mask[:] = False
-                mask[self.tokenizer.eos_token_id] = True
-            logits[~mask] = float("-inf")
-        # After a hold token only color token can be generated
-        elif last_token in self.tokenizer.hold_token_ids.to(self.device):
-            mask = torch.zeros_like(logits, dtype=torch.bool)
-            mask[self.tokenizer.color_token_ids] = True
-            # not more than 2 starts
-            # TODO check that this works
-            if (prompt == self.tokenizer.start_token_id).to(torch.long).sum() >= 2:
-                mask[self.tokenizer.start_token_id] = False
-            # not more than 2 finishes
-            if (prompt == self.tokenizer.finish_token_id).to(torch.long).sum() >= 2:
-                mask[self.tokenizer.finish_token_id] = False
-            missing_start = not (prompt == self.tokenizer.start_token_id).any()
-            missing_finish = not (prompt == self.tokenizer.finish_token_id).any()
-            n_holds = torch.isin(prompt, self.tokenizer.hold_token_ids.to(self.device)).sum().item()
-            if n_holds + missing_start + missing_finish > 28:
-                mask[:] = False
-                mask[self.tokenizer.start_token_id if missing_start else self.tokenizer.finish_token_id] = True
-            logits[~mask] = float("-inf")
+                mask[tokenizer.eos_token_id] = True
+        if role_first and not picks_hold:
+            temperature, p = 1.0, 1.0
+        logits = logits / temperature
+        logits[~mask] = float("-inf")
         return self._sample_from_logits(logits, p)
 
     @torch.no_grad()
@@ -445,7 +444,8 @@ class GPTModel(L.LightningModule):
         plotter = Plotter(colorscheme, verbose_cutoff=cutoff)
         frames = self.generate_from_string(prompt, angle, grade, temperature, p)
         probs = self._gen_logits
-        probs = probs[0::2]
+        # the hold-choice steps, plus the final stop step (its non-hold tokens are not drawn)
+        probs = probs[1::2] + probs[-1:] if self.tokenizer.role_first else probs[0::2]
         split_frames = [f"p{i}" for i in frames.split("p")[1:]]
         split_frames = ["".join(split_frames[:i]) for i in range(len(split_frames))]
         split_frames.append(frames)

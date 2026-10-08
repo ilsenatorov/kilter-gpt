@@ -18,6 +18,7 @@ def train(config):
         subset=config.subset,
         num_workers=config.num_workers,
         smooth_labels=config.smooth_labels,
+        role_first=config.role_first,
         test_subset=config.test_subset,
     )
     dm.setup()

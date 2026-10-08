@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Classifier-free guidance on the grade (`--p_uncond` in training, `cfg_scale` in generation).
 - Grade predictor (`scripts/train_grade.py`) and `grade_mae` test metric.
 - Test metrics `mean_holds`, `mean_feet` and `no_feet_rate` for generated climbs, next to `test/real/*` for the test set.
+- `--role_first`: tokenize each hold as role then placement. Roles and the stop token then sample at temperature 1, so only the hold choice is sharpened by temperature and top-p.
 - `scripts/export_onnx.py` exports a checkpoint for the Android app, with the `uncond` input for guidance, and checks it against PyTorch.
 
 ### Changed

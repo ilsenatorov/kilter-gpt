@@ -226,3 +226,19 @@ def test_legacy_quality_scale():
     to_legacy = legacy_quality_scale(new, old)
     assert to_legacy(new.iloc[:5]).tolist() == pytest.approx([1.0, 1.5, 2.0, 2.5, 3.0])
     assert to_legacy(pd.Series([0.0, 99.0])).tolist() == [1.0, 3.0]  # clipped to the legacy range
+
+
+def test_role_first_tokens(tmp_path):
+    tokenizer = Tokenizer(role_first=True)
+    tokens, _, _ = tokenizer.encode("p1200r12p1201r14")
+    assert tokenizer.decode(tokens) == ["[BOS]", "r12", "p1200", "r14", "p1201", "[EOS]"]
+    assert tokenizer.decode(tokens, clean=True) == "p1200r12p1201r14"
+    assert tokenizer.decode(tokens[:-2], clean=True) == "p1200r12"  # a role without its hold is dropped
+    old = Tokenizer(role_first=True)
+    del old.role_first  # tokenizers pickled into old checkpoints have no attribute and stay hold-first
+    assert old.decode(old.encode("p1200r12")[0]) == ["[BOS]", "p1200", "r12", "[EOS]"]
+    pd.DataFrame({"frames": ["p1200r12p1201r14"], "angle": 40, "difficulty_average": 20}).to_csv(
+        tmp_path / "climbs.csv", index=False
+    )
+    with pytest.raises(ValueError):
+        KilterDataset(tmp_path / "climbs.csv", tokenizer, smooth_labels=True)

@@ -93,6 +93,8 @@ class KilterDataset(Dataset):
             self.bucket_shuffle()
         else:
             self.len_sort()
+        if smooth_labels and tokenizer.role_first:
+            raise ValueError("smooth_labels assumes hold-first tokens")
         self.tokenizer = tokenizer
         self.smooth_labels = smooth_labels
         self.prompt_size = prompt_size

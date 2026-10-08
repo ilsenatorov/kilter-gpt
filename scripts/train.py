@@ -12,6 +12,7 @@ parser.add_argument("--batch_size", type=int, default=64, help="Batch size when 
 parser.add_argument("--max_num_tokens", type=int, default=4096, help="Max number of tokens, overrides batch size")
 parser.add_argument("--test_subset", type=float, default=1.0, help="Random fraction of the test set to generate from")
 parser.add_argument("--smooth_labels", type=str_to_bool, default=False, help="Smooth labels")
+parser.add_argument("--role_first", type=str_to_bool, default=False, help="Tokenize each hold as role then placement")
 # training params
 parser.add_argument("--only_train", type=str_to_bool, default=False, help="Skip the testing part")
 parser.add_argument("--epochs", type=int, default=500, help="Number of epochs")

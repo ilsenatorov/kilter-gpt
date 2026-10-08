@@ -22,6 +22,7 @@ class KilterDataModule(L.LightningDataModule):
         pin_memory (bool): Whether to pin memory in DataLoader.
         prompt_size (float): Fraction of the sequence to use as prompt. Only used if the dataset is set to evaluation mode.
         subset (float): Fraction of the dataset to use. Useful for debugging.
+        role_first (bool): Tokenize each hold as role then placement (r13 p1234) instead of placement then role.
         shuffle (bool): Shuffle the train set every epoch. The CSVs are sorted by ascensionist_count, so leave this on.
         test_subset (float): Random fraction of the test set, to make generation metrics cheaper in sweeps.
         test_file (str): Held-out CSV to use for testing.
@@ -37,6 +38,7 @@ class KilterDataModule(L.LightningDataModule):
         prompt_size: float = 0.2,
         subset: float = 1.0,
         smooth_labels: bool = False,
+        role_first: bool = False,
         shuffle: bool = True,
         test_file: str = "test.csv",
         test_subset: float = 1.0,
@@ -52,6 +54,7 @@ class KilterDataModule(L.LightningDataModule):
         self.prompt_size = prompt_size
         self.subset = subset
         self.smooth_labels = smooth_labels
+        self.role_first = role_first
         self.shuffle = shuffle
         self.test_file = test_file
         self.test_subset = test_subset
@@ -77,7 +80,7 @@ class KilterDataModule(L.LightningDataModule):
         return x, angle, grade, y
 
     def setup(self, stage=None):
-        self.tokenizer = Tokenizer()
+        self.tokenizer = Tokenizer(role_first=self.role_first)
         self.train = self._get_dataset("train.csv")
         self.val = self._get_dataset("val.csv")
         self.test = self._get_dataset(self.test_file)

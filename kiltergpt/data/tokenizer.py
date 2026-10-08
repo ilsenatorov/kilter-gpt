@@ -17,7 +17,12 @@ def sort_holds(climb: str) -> str:
 
 
 class Tokenizer:
-    def __init__(self):
+    # Token order within a hold. Hold first: p1234 r13. Role first: r13 p1234, so whether the next hold is a foot is
+    # decided before which hold it is. A class default, so tokenizers pickled into old checkpoints stay hold-first.
+    role_first = False
+
+    def __init__(self, role_first: bool = False):
+        self.role_first = role_first
         self.encode_map: dict[str, int] = dict()
         for i, token in enumerate(self.special_tokens() + self.color_tokens() + self.hold_tokens()):
             self.encode_map[token] = i
@@ -187,7 +192,10 @@ class Tokenizer:
             tokens.append(self.bos_token)
         if shuffle:
             frames = shuffle_holds(frames)
-        tokens.extend(self.split_tokens(frames))
+        split = self.split_tokens(frames)
+        if self.role_first:
+            split = [token for hold, role in zip(split[::2], split[1::2], strict=True) for token in (role, hold)]
+        tokens.extend(split)
         if eos:
             tokens.append(self.eos_token)
         t = torch.tensor([self.encode_map.get(x, self.unk_token_id) for x in tokens], dtype=torch.long)
@@ -239,11 +247,11 @@ class Tokenizer:
         frames = ""
         start = x.index(self.bos_token) if self.bos_token in x else 0
         end = x.index(self.eos_token) if self.eos_token in x else len(x)
-        x = x[start + 1 : end]
-        for i in x:
-            if i.startswith("p") or i.startswith("r"):
-                frames += i
-        return frames
+        x = [i for i in x[start + 1 : end] if i.startswith("p") or i.startswith("r")]
+        if self.role_first:  # back to p<hold>r<role>; a role without its hold yet is dropped
+            x = [token for role, hold in zip(x[::2], x[1::2], strict=False) for token in (hold, role)]
+        return "".join(x)
 
     def __repr__(self):
-        return f"Tokenizer, tokens:{len(self.encode_map)}, hold:{len(self.hold_tokens())}"
+        order = "role first" if self.role_first else "hold first"
+        return f"Tokenizer, tokens:{len(self.encode_map)}, hold:{len(self.hold_tokens())}, {order}"
