@@ -10,11 +10,13 @@ from .. import __version__
 from ..data.datasets import climb_signature
 from ..data.tokenizer import Tokenizer
 from ..utils import Plotter, WarmupCosineSchedule
-from ..utils.metrics import generation_metrics
+from ..utils.metrics import generation_metrics, structure_metrics
 from ..utils.utils import KilterPolice, validate_prompt
 from .grade import GradePredictor
 
 DEFAULT_CFG_SCALE = 3.0  # with temperature 1 and top-p 1: grade error close to temperature 0.7 without losing holds
+# Test-time sampling, temperature -> top-p: the old 0.7 / 0.8 default (comparable with earlier runs) and the new one
+TEST_TOP_P = {0.7: 0.8, 1.0: 1.0}
 
 
 class LayerNorm(nn.Module):
@@ -205,7 +207,7 @@ class GPTModel(L.LightningModule):
 
     def on_test_epoch_start(self) -> None:
         torch.manual_seed(42)
-        self.test_generated = {(temp, cfg): [] for temp in (0.3, 0.5, 0.7) for cfg in self.cfg_scales}
+        self.test_generated = {(temp, cfg): [] for temp in TEST_TOP_P for cfg in self.cfg_scales}
         self.test_conditions = []
         self.test_reference = {climb_signature(frames) for frames in self.trainer.datamodule.train.df.frames}
         self.test_police = KilterPolice(self.tokenizer, (1, 2), (1, 2), n_total_holds=(4, 28))
@@ -215,7 +217,9 @@ class GPTModel(L.LightningModule):
         self.log("test/loss", self.get_loss(self(y[:, :-1], angle, grade), y[:, 1:]))
         self.test_conditions.append((round(angle.item() * 70), grade.item() * len(self.tokenizer.grade_tokens())))
         for temp, cfg in self.test_generated:
-            generated = self.generate(x.squeeze(0), angle.squeeze(0), grade.squeeze(0), temp, p=0.8, cfg_scale=cfg)
+            generated = self.generate(
+                x.squeeze(0), angle.squeeze(0), grade.squeeze(0), temp, p=TEST_TOP_P[temp], cfg_scale=cfg
+            )
             self.test_generated[temp, cfg].append(self.tokenizer.decode(generated.detach().cpu(), clean=True))
             self._gen_logits.clear()
 
@@ -226,7 +230,8 @@ class GPTModel(L.LightningModule):
     def _get_fixed_prompt_diversity(self, temp: float, cfg: float):
         n_runs = 4 if self.config.n_embed < 32 else 16
         climbs = {
-            climb_signature(self.generate_from_string("p1387r14", 40, "7a", temp, 0.8, cfg)) for _ in range(n_runs)
+            climb_signature(self.generate_from_string("p1387r14", 40, "7a", temp, TEST_TOP_P[temp], cfg))
+            for _ in range(n_runs)
         }
         return len(climbs) / n_runs
 
@@ -234,6 +239,8 @@ class GPTModel(L.LightningModule):
         grade_predictor = None
         if getattr(self.config, "grade_predictor", None):
             grade_predictor = GradePredictor.load_checkpoint(self.config.grade_predictor).to(self.device).eval()
+        real = [frames for frames in self.trainer.datamodule.test.df.frames]
+        self.log_dict({f"test/real/{name}": score for name, score in structure_metrics(real).items()})
         for (temp, cfg), generated in self.test_generated.items():
             prefix = f"test/temp={temp}/cfg={cfg}"
             scores = generation_metrics(generated, self.test_reference, self.test_police)
@@ -249,9 +256,9 @@ class GPTModel(L.LightningModule):
         plotter = Plotter()
         finish_hold = "p1387"
         setup = [(30, "6a"), (40, "7a"), (50, "8a")]
-        for temp in [0.3, 0.5, 0.7]:
+        for temp, p in TEST_TOP_P.items():
             route_frames = [
-                self.generate_from_string(f"{finish_hold}r14", angle, grade, temperature=temp, p=0.8)
+                self.generate_from_string(f"{finish_hold}r14", angle, grade, temperature=temp, p=p)
                 for angle, grade in setup
             ]
             route_images = [plotter.plot_climb(x, highlight=finish_hold) for x in route_frames]

@@ -65,6 +65,9 @@ def test_generation_metrics(kilter_police, sane_climb):
     assert scores["valid_rate"] == 2 / 3
     assert scores["novel_rate"] == 2 / 3
     assert scores["nearest_sampled_distance"] == pytest.approx((0 + 0.4 + 1) / 3)
+    assert scores["mean_holds"] == pytest.approx(8 / 3)
+    assert scores["mean_feet"] == pytest.approx(2 / 3)
+    assert scores["no_feet_rate"] == pytest.approx(1 / 3)
 
 
 def test_plotter():

@@ -19,7 +19,7 @@ parser.add_argument("--lr", type=float, default=6e-4, help="Max learning rate")
 parser.add_argument("--wd", type=float, default=1e-1, help="Weight decay")
 parser.add_argument("--precision", type=str, default="32-true", help="Training precision")
 parser.add_argument("--p_uncond", type=float, default=0.1, help="Grade dropout for classifier-free guidance")
-parser.add_argument("--cfg_scales", type=float, nargs="+", default=[1.0, 2.0], help="Guidance scales to test")
+parser.add_argument("--cfg_scales", type=float, nargs="+", default=[1.0, 3.0], help="Guidance scales to test")
 parser.add_argument("--grade_predictor", type=str, default=None, help="GradePredictor checkpoint for test/grade_mae")
 # model params
 parser.add_argument("--n_head", type=int, default=8, help="Number of attention heads")

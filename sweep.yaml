@@ -3,7 +3,7 @@ program: scripts/train.py
 method: grid
 metric:
   goal: minimize
-  name: test/temp=0.7/cfg=2.0/grade_mae  # watch novel_rate/fixed_prompt_unique_rate for collapse
+  name: test/temp=1.0/cfg=3.0/grade_mae  # watch novel_rate, mean_feet and fixed_prompt_unique_rate for collapse
 parameters:
   data_dir:
     value: data/processed-broad-2026
