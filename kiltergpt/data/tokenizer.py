@@ -107,6 +107,11 @@ class Tokenizer:
             "9c+",
         ]
 
+    @staticmethod
+    def popularity(ascents: float | int | np.integer) -> float:
+        """Ascent count on the 0-1 scale of the popularity input: log10(1 + ascents) / 4, so 10,000 ascents is 1"""
+        return min(float(np.log10(1 + max(ascents, 0))) / 4, 1.0)
+
     @property
     def start_token_id(self) -> int:
         return self.encode_map[self.start_token()]

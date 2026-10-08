@@ -109,6 +109,9 @@ class GPT(L.LightningModule):
         self.grade_proj = nn.Linear(1, self.config.n_embed)
         # Learned "no grade" embedding for classifier-free guidance; old checkpoints were trained without it
         self.null_grade = nn.Parameter(torch.zeros(config.n_embed)) if getattr(config, "p_uncond", 0) > 0 else None
+        # Optional ascent-count input (Tokenizer.popularity) with its own learned "any popularity" embedding
+        self.popularity_proj = nn.Linear(1, config.n_embed) if getattr(config, "popularity", False) else None
+        self.null_popularity = nn.Parameter(torch.zeros(config.n_embed)) if self.popularity_proj else None
 
         self.transformer = nn.ModuleDict(
             dict(
@@ -134,13 +137,15 @@ class GPT(L.LightningModule):
         elif isinstance(module, nn.Embedding):
             torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
 
-    def forward(self, idx, angle, grade, uncond=None):
-        x = self.embed(idx, angle, grade, uncond)
+    def forward(self, idx, angle, grade, uncond=None, popularity=None):
+        x = self.embed(idx, angle, grade, uncond, popularity)
         logits = self.lm_head(x)
         return logits
 
-    def embed(self, idx, angle, grade, uncond=None):
-        """uncond: optional (B,) bool mask replacing the grade with the null embedding"""
+    def embed(self, idx, angle, grade, uncond=None, popularity=None):
+        """uncond: optional (B,) bool mask replacing the grade with the null embedding
+        popularity: optional (B, 1) ascent count on Tokenizer.popularity's scale, for models trained with it;
+        None conditions on any popularity. Training drops it to the null embedding at the grade dropout rate."""
         angle = self.angle_proj(angle.unsqueeze(-1))
         grade = self.grade_proj(grade.unsqueeze(-1))
         b, t = idx.size()
@@ -152,7 +157,18 @@ class GPT(L.LightningModule):
         tok_emb = self.transformer.wte(idx)  # token embeddings of shape (b, t, n_embd)
         pos_emb = self.transformer.wpe(pos)  # position embeddings of shape (t, n_embd)
         x = self.transformer.drop(tok_emb + pos_emb)
-        x = torch.cat((angle, grade, x), dim=1)
+        prefix = [angle, grade]
+        if self.popularity_proj is not None:
+            null = self.null_popularity.expand(b, 1, -1)
+            if popularity is None:
+                prefix.append(null)
+            else:
+                pop = self.popularity_proj(popularity.unsqueeze(-1))
+                if self.training:
+                    drop = torch.rand(b, device=idx.device) < self.config.p_uncond
+                    pop = torch.where(drop.view(b, 1, 1), null, pop)
+                prefix.append(pop)
+        x = torch.cat((*prefix, x), dim=1)
         for block in self.transformer.h:
             x = block(x)
         x = self.transformer.ln_f(x)
@@ -187,14 +203,14 @@ class GPTModel(L.LightningModule):
             loss = F.binary_cross_entropy_with_logits(logits, targets, reduction="mean")
         return loss
 
-    def forward(self, x, angle, grade, uncond=None):
-        logits = self.model.forward(x, angle, grade, uncond)
+    def forward(self, x, angle, grade, uncond=None, popularity=None):
+        logits = self.model.forward(x, angle, grade, uncond, popularity)
         return logits
 
     def shared_step(self, batch, name: str):
-        # (B, S), (B, 1), (B, 1), (B, S)
-        x, angle, grade, y = batch
-        logits = self.forward(x, angle, grade)
+        # (B, S), (B, 1), (B, 1), (B, S), optionally popularity (B, 1)
+        x, angle, grade, y, *popularity = batch
+        logits = self.forward(x, angle, grade, popularity=popularity[0] if popularity else None)
         loss = self.get_loss(logits, y)
         self.log(f"{name}/loss", loss)
         return loss
@@ -213,12 +229,19 @@ class GPTModel(L.LightningModule):
         self.test_police = KilterPolice(self.tokenizer, (1, 2), (1, 2), n_total_holds=(4, 28))
 
     def test_step(self, batch, batch_idx):
-        x, angle, grade, y = batch
-        self.log("test/loss", self.get_loss(self(y[:, :-1], angle, grade), y[:, 1:]))
+        x, angle, grade, y, *popularity = batch
+        popularity = popularity[0] if popularity else None  # generate like each test climb, popularity included
+        self.log("test/loss", self.get_loss(self(y[:, :-1], angle, grade, popularity=popularity), y[:, 1:]))
         self.test_conditions.append((round(angle.item() * 70), grade.item() * len(self.tokenizer.grade_tokens())))
         for temp, cfg in self.test_generated:
             generated = self.generate(
-                x.squeeze(0), angle.squeeze(0), grade.squeeze(0), temp, p=TEST_TOP_P[temp], cfg_scale=cfg
+                x.squeeze(0),
+                angle.squeeze(0),
+                grade.squeeze(0),
+                temp,
+                p=TEST_TOP_P[temp],
+                cfg_scale=cfg,
+                popularity=None if popularity is None else popularity.squeeze(0),
             )
             self.test_generated[temp, cfg].append(self.tokenizer.decode(generated.detach().cpu(), clean=True))
             self._gen_logits.clear()
@@ -315,6 +338,7 @@ class GPTModel(L.LightningModule):
         temperature: float,
         p: float,
         cfg_scale: float = 1.0,
+        popularity: torch.Tensor | None = None,
     ) -> torch.Tensor:
         """Generate a single token
         prompt: torch.LongTensor: input_ids
@@ -327,12 +351,14 @@ class GPTModel(L.LightningModule):
         last_token = prompt[-1]
         hold_ids = tokenizer.hold_token_ids.to(self.device)
         if cfg_scale == 1.0:
-            logits = self.forward(prompt.unsqueeze(0), angle.unsqueeze(0), grade.unsqueeze(0))[0, -1]
+            pop = None if popularity is None else popularity.unsqueeze(0)
+            logits = self.forward(prompt.unsqueeze(0), angle.unsqueeze(0), grade.unsqueeze(0), popularity=pop)[0, -1]
         else:
-            # conditional and unconditional passes in one batch of 2
+            # conditional and unconditional passes in one batch of 2; only the grade is dropped
             uncond = torch.tensor([False, True], device=self.device)
-            logits = self.forward(prompt.expand(2, -1), angle.expand(2, -1), grade.expand(2, -1), uncond)[:, -1]
-            logits = logits[1] + cfg_scale * (logits[0] - logits[1])
+            pop = None if popularity is None else popularity.expand(2, -1)
+            logits = self.forward(prompt.expand(2, -1), angle.expand(2, -1), grade.expand(2, -1), uncond, pop)
+            logits = logits[1, -1] + cfg_scale * (logits[0, -1] - logits[1, -1])
         # A climb can stop only between holds: after BOS or a finished (hold, role) pair
         between_holds = last_token == tokenizer.bos_token_id or (
             last_token in hold_ids if role_first else last_token in tokenizer.color_token_ids.to(self.device)
@@ -376,11 +402,14 @@ class GPTModel(L.LightningModule):
         temperature: float,
         p: float,
         cfg_scale: float = 1.0,
+        popularity: torch.Tensor | None = None,
     ) -> torch.Tensor:
         """Generate until EOS token is reached (not batched). Always samples in eval mode:
         train mode would add dropout and randomly drop the grade (p_uncond)."""
         if cfg_scale != 1.0 and self.model.null_grade is None:
             raise ValueError("cfg_scale != 1 needs a model trained with p_uncond > 0")
+        if popularity is not None and self.model.popularity_proj is None:
+            raise ValueError("popularity needs a model trained with --popularity")
         was_training = self.training
         self.eval()
         try:
@@ -388,7 +417,7 @@ class GPTModel(L.LightningModule):
             while next_prompt != self.tokenizer.eos_token_id:
                 context = prompt[-self.config.context_len :]
                 next_prompt = self._generate_token(
-                    context, angle, grade, temperature=temperature, p=p, cfg_scale=cfg_scale
+                    context, angle, grade, temperature=temperature, p=p, cfg_scale=cfg_scale, popularity=popularity
                 )
                 prompt = torch.cat((prompt, next_prompt), dim=0)
                 # Stop when you get to full context window (30 holds)
@@ -411,10 +440,13 @@ class GPTModel(L.LightningModule):
         temperature: float = 1.0,
         p: float = 1.0,
         cfg_scale: float | None = None,
+        ascents: float | int | None = None,
     ) -> str:
         """Generate a climb from a string of frames, angle, and grade.
         Defaults match real climbs: lower temperature or top-p drops foot holds first and cuts climbs short.
-        cfg_scale defaults to 3.0 on checkpoints trained with grade dropout and to 1.0 on older ones."""
+        cfg_scale defaults to 3.0 on checkpoints trained with grade dropout and to 1.0 on older ones.
+        ascents: for models trained with --popularity, generate climbs like ones with about this many ascents;
+        None conditions on any popularity."""
         if cfg_scale is None:
             cfg_scale = DEFAULT_CFG_SCALE if self.model.null_grade is not None else 1.0
         validate_prompt(frames)
@@ -425,7 +457,12 @@ class GPTModel(L.LightningModule):
         self._gen_logits = []
         x, angle, grade = self.tokenizer.encode(frames, angle, grade, eos=False)
         x, angle, grade = x.to(self.device), angle.to(self.device).unsqueeze(0), grade.to(self.device).unsqueeze(0)
-        generated = self.generate(x, angle, grade, temperature=temperature, p=p, cfg_scale=cfg_scale)
+        popularity = None
+        if ascents is not None:
+            popularity = torch.tensor([self.tokenizer.popularity(ascents)], device=self.device)
+        generated = self.generate(
+            x, angle, grade, temperature=temperature, p=p, cfg_scale=cfg_scale, popularity=popularity
+        )
         return self.tokenizer.decode(generated, clean=True)
 
     def generate_generation_fig(

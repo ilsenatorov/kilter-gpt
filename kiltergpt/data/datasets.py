@@ -80,7 +80,9 @@ class KilterDataset(Dataset):
         prompt_size: float = 0.2,
         subset: float = 1.0,
         shuffle_holds: bool = True,
+        popularity: bool = False,
     ):
+        """popularity: also return each climb's ascent count on Tokenizer.popularity's scale, as a fifth item"""
         assert 0 < subset <= 1, f"Subset must be between 0 and 1, got {subset}"
         df = pd.read_csv(filename)
         expected_split = Path(filename).stem.split("-")[0]
@@ -98,6 +100,7 @@ class KilterDataset(Dataset):
         self.tokenizer = tokenizer
         self.smooth_labels = smooth_labels
         self.prompt_size = prompt_size
+        self.popularity = popularity
         self.eval = False
 
     def __len__(self) -> int:
@@ -117,7 +120,13 @@ class KilterDataset(Dataset):
         tokenized, angle, grade = self._get_whole_buffer(idx)
         n_tokens = tokenized.size(0)
         prompt_size = max(math.ceil(n_tokens * self.prompt_size), 5)
-        return tokenized[:prompt_size], angle, grade, tokenized
+        return self._with_popularity(idx, (tokenized[:prompt_size], angle, grade, tokenized))
+
+    def _with_popularity(self, idx: int, item: tuple) -> tuple:
+        if not self.popularity:
+            return item
+        ascents = self.df["ascensionist_count"].iloc[idx]
+        return item + (torch.tensor(self.tokenizer.popularity(ascents), dtype=torch.float32),)
 
     def __getitem__(self, idx: int):
         if self.eval:
@@ -131,7 +140,7 @@ class KilterDataset(Dataset):
         y = tokenized[1:]
         if self.smooth_labels:
             y = self.smooth_y(y)
-        return x, angle, grade, y
+        return self._with_popularity(idx, (x, angle, grade, y))
 
     def smooth_y(self, y: torch.Tensor) -> torch.Tensor:
         smooth_y = F.one_hot(y, num_classes=self.tokenizer.vocab_size).to(torch.float32)

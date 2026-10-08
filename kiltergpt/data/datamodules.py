@@ -22,6 +22,7 @@ class KilterDataModule(L.LightningDataModule):
         pin_memory (bool): Whether to pin memory in DataLoader.
         prompt_size (float): Fraction of the sequence to use as prompt. Only used if the dataset is set to evaluation mode.
         subset (float): Fraction of the dataset to use. Useful for debugging.
+        popularity (bool): Add each climb's ascent count (Tokenizer.popularity) as a fifth batch item.
         role_first (bool): Tokenize each hold as role then placement (r13 p1234) instead of placement then role.
         shuffle (bool): Shuffle the train set every epoch. The CSVs are sorted by ascensionist_count, so leave this on.
         test_subset (float): Random fraction of the test set, to make generation metrics cheaper in sweeps.
@@ -39,6 +40,7 @@ class KilterDataModule(L.LightningDataModule):
         subset: float = 1.0,
         smooth_labels: bool = False,
         role_first: bool = False,
+        popularity: bool = False,
         shuffle: bool = True,
         test_file: str = "test.csv",
         test_subset: float = 1.0,
@@ -55,6 +57,7 @@ class KilterDataModule(L.LightningDataModule):
         self.subset = subset
         self.smooth_labels = smooth_labels
         self.role_first = role_first
+        self.popularity = popularity
         self.shuffle = shuffle
         self.test_file = test_file
         self.test_subset = test_subset
@@ -67,17 +70,17 @@ class KilterDataModule(L.LightningDataModule):
             subset=self.subset * (self.test_subset if csv_filename == self.test_file else 1),
             smooth_labels=self.smooth_labels,
             shuffle_holds=csv_filename == "train.csv",
+            popularity=self.popularity,
         )
 
-    def collate_fn(
-        self, batch: list[tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]]
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-        x, angle, grade, y = zip(*batch, strict=True)
+    def collate_fn(self, batch: list[tuple[torch.Tensor, ...]]) -> tuple[torch.Tensor, ...]:
+        """(x, angle, grade, y), plus popularity (B, 1) when the datasets return it"""
+        x, angle, grade, y, *popularity = zip(*batch, strict=True)
         x = pad_sequence(x, batch_first=True, padding_value=self.tokenizer.pad_token_id)
         y = pad_sequence(y, batch_first=True, padding_value=self.tokenizer.pad_token_id)
         angle = torch.tensor(angle, dtype=torch.float).unsqueeze(1)
         grade = torch.tensor(grade, dtype=torch.float).unsqueeze(1)
-        return x, angle, grade, y
+        return (x, angle, grade, y) + tuple(torch.tensor(p, dtype=torch.float).unsqueeze(1) for p in popularity)
 
     def setup(self, stage=None):
         self.tokenizer = Tokenizer(role_first=self.role_first)

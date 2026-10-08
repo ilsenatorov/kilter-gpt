@@ -1,8 +1,11 @@
 from argparse import Namespace
 
+import pandas as pd
 import pytest
 import torch
 
+from kiltergpt.data.datamodules import KilterDataModule
+from kiltergpt.data.datasets import KilterDataset
 from kiltergpt.data.tokenizer import Tokenizer
 from kiltergpt.models import GPTModel, GradePredictor
 from kiltergpt.utils import KilterPolice
@@ -104,3 +107,30 @@ def test_role_first_generate(sample_config, temperature):
         tokens = tokenizer.encode(generated)[0][1:-1]
         assert torch.isin(tokens[0::2], tokenizer.color_token_ids).all()
         assert torch.isin(tokens[1::2], tokenizer.hold_token_ids).all()
+
+
+def test_popularity(sample_config, tmp_path):
+    tokenizer = Tokenizer()
+    assert tokenizer.popularity(0) == 0 and tokenizer.popularity(99) == pytest.approx(0.5)
+    assert tokenizer.popularity(10**6) == 1.0
+    model = GPTModel(Namespace(**vars(sample_config), p_uncond=0.1, popularity=True), tokenizer).eval()
+    x, angle, grade = torch.tensor([[1, 100, 6]]), torch.tensor([[40 / 70]]), torch.tensor([[0.5]])
+    popular, fresh = torch.tensor([[1.0]]), torch.tensor([[0.0]])
+    assert not torch.allclose(model(x, angle, grade, popularity=popular), model(x, angle, grade, popularity=fresh))
+    police = KilterPolice(tokenizer, (1, 2), (1, 2), n_total_holds=(4, 28))
+    for ascents in (None, 0, 500):
+        assert police.check(model.generate_from_string("p1234r12", 40, "7a", ascents=ascents))
+    with pytest.raises(ValueError):
+        GPTModel(sample_config, tokenizer).generate_from_string("p1234r12", 40, "7a", ascents=500)
+    # the datamodule adds popularity as a fifth batch item and the model trains on it
+    frames = ["p1200r12p1201r13p1202r13p1203r14", "p1210r12p1211r13p1212r13p1213r14"]
+    pd.DataFrame({"frames": frames, "angle": 40, "difficulty_average": 20, "ascensionist_count": [0, 900]}).to_csv(
+        tmp_path / "climbs.csv", index=False
+    )
+    dataset = KilterDataset(tmp_path / "climbs.csv", tokenizer, popularity=True)
+    datamodule = KilterDataModule(data_dir=tmp_path)
+    datamodule.tokenizer = tokenizer  # normally set in setup(), which needs train/val/test CSVs
+    batch = datamodule.collate_fn([dataset[0], dataset[1]])
+    assert len(batch) == 5 and batch[4].shape == (2, 1)
+    assert sorted(batch[4].flatten().tolist()) == pytest.approx([0.0, tokenizer.popularity(900)])
+    model.train().shared_step(batch, "train").backward()
