@@ -134,3 +134,5 @@ def test_popularity(sample_config, tmp_path):
     assert len(batch) == 5 and batch[4].shape == (2, 1)
     assert sorted(batch[4].flatten().tolist()) == pytest.approx([0.0, tokenizer.popularity(900)])
     model.train().shared_step(batch, "train").backward()
+    dataset.eval = True  # test batches carry it too
+    assert len(dataset[0]) == 5

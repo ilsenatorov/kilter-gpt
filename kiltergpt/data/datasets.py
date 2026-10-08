@@ -116,7 +116,7 @@ class KilterDataset(Dataset):
         )
         return tokenized, angle, grade
 
-    def _get_item_eval(self, idx: int) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    def _get_item_eval(self, idx: int) -> tuple[torch.Tensor, ...]:  # popularity adds a fifth item
         tokenized, angle, grade = self._get_whole_buffer(idx)
         n_tokens = tokenized.size(0)
         prompt_size = max(math.ceil(n_tokens * self.prompt_size), 5)
