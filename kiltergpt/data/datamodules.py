@@ -24,9 +24,12 @@ class KilterDataModule(L.LightningDataModule):
         subset (float): Fraction of the dataset to use. Useful for debugging.
         popularity (bool): Add each climb's ascent count (Tokenizer.popularity) as a fifth batch item.
         role_first (bool): Tokenize each hold as role then placement (r13 p1234) instead of placement then role.
+        bottom_up (bool): Train on holds listed bottom to top (after a random prompt half the time), not shuffled.
         shuffle (bool): Shuffle the train set every epoch. The CSVs are sorted by ascensionist_count, so leave this on.
         test_subset (float): Random fraction of the test set, to make generation metrics cheaper in sweeps.
         test_file (str): Held-out CSV to use for testing.
+        shuffle_test_prompts (bool): Prompt with a random subset of each test climb's holds, not the first ones in CSV
+            order (sorted by placement, so mostly low bolt-ons, which biases generation away from screw-on holds).
     """
 
     def __init__(
@@ -40,10 +43,12 @@ class KilterDataModule(L.LightningDataModule):
         subset: float = 1.0,
         smooth_labels: bool = False,
         role_first: bool = False,
+        bottom_up: bool = False,
         popularity: bool = False,
         shuffle: bool = True,
         test_file: str = "test.csv",
         test_subset: float = 1.0,
+        shuffle_test_prompts: bool = False,
     ):
         super().__init__()
         if not isinstance(data_dir, Path):
@@ -57,10 +62,12 @@ class KilterDataModule(L.LightningDataModule):
         self.subset = subset
         self.smooth_labels = smooth_labels
         self.role_first = role_first
+        self.bottom_up = bottom_up
         self.popularity = popularity
         self.shuffle = shuffle
         self.test_file = test_file
         self.test_subset = test_subset
+        self.shuffle_test_prompts = shuffle_test_prompts
 
     def _get_dataset(self, csv_filename: str) -> KilterDataset:
         return KilterDataset(
@@ -69,7 +76,8 @@ class KilterDataModule(L.LightningDataModule):
             prompt_size=self.prompt_size,
             subset=self.subset * (self.test_subset if csv_filename == self.test_file else 1),
             smooth_labels=self.smooth_labels,
-            shuffle_holds=csv_filename == "train.csv",
+            shuffle_holds=csv_filename == "train.csv"
+            or (csv_filename == self.test_file and self.shuffle_test_prompts),
             popularity=self.popularity,
         )
 
@@ -83,7 +91,7 @@ class KilterDataModule(L.LightningDataModule):
         return (x, angle, grade, y) + tuple(torch.tensor(p, dtype=torch.float).unsqueeze(1) for p in popularity)
 
     def setup(self, stage=None):
-        self.tokenizer = Tokenizer(role_first=self.role_first)
+        self.tokenizer = Tokenizer(role_first=self.role_first, bottom_up=self.bottom_up)
         self.train = self._get_dataset("train.csv")
         self.val = self._get_dataset("val.csv")
         self.test = self._get_dataset(self.test_file)

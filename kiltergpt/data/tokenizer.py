@@ -1,5 +1,10 @@
+from pathlib import Path
+
 import numpy as np
+import pandas as pd
 import torch
+
+IMAGE_COORDS = Path(__file__).parents[2] / "figs" / "image_coords.csv"
 
 
 def shuffle_holds(climb: str) -> str:
@@ -20,9 +25,16 @@ class Tokenizer:
     # Token order within a hold. Hold first: p1234 r13. Role first: r13 p1234, so whether the next hold is a foot is
     # decided before which hold it is. A class default, so tokenizers pickled into old checkpoints stay hold-first.
     role_first = False
+    # Bottom-up: training sequences list the holds bottom to top (then left to right) instead of in random order
+    bottom_up = False
 
-    def __init__(self, role_first: bool = False):
+    def __init__(self, role_first: bool = False, bottom_up: bool = False):
         self.role_first = role_first
+        self.bottom_up = bottom_up
+        if bottom_up:
+            coords = pd.read_csv(IMAGE_COORDS, index_col=0)
+            order = coords.sort_values(["img_y", "img_x"], ascending=[False, True]).index
+            self.hold_rank = {f"p{placement}": rank for rank, placement in enumerate(order)}
         self.encode_map: dict[str, int] = dict()
         for i, token in enumerate(self.special_tokens() + self.color_tokens() + self.hold_tokens()):
             self.encode_map[token] = i
@@ -111,6 +123,23 @@ class Tokenizer:
     def popularity(ascents: float | int | np.integer) -> float:
         """Ascent count on the 0-1 scale of the popularity input: log10(1 + ascents) / 4, so 10,000 ascents is 1"""
         return min(float(np.log10(1 + max(ascents, 0))) / 4, 1.0)
+
+    def sort_bottom_up(self, frames: str, n_prefix: int = 0) -> str:
+        """Holds bottom to top, after the first n_prefix holds, which keep their order (a prompt)"""
+        holds = ["p" + x for x in frames.split("p")[1:]]
+        rest = sorted(holds[n_prefix:], key=lambda hold: self.hold_rank[hold.split("r")[0]])
+        return "".join(holds[:n_prefix] + rest)
+
+    def hold_positions(self) -> torch.Tensor:
+        """(vocab_size, 2) board position of each hold token, x and y in [0, 1] from the bottom left; 0 elsewhere"""
+        coords = pd.read_csv(IMAGE_COORDS, index_col=0)
+        positions = torch.zeros(self.vocab_size, 2)
+        for hold in self.hold_tokens():
+            img_x, img_y = coords.loc[int(hold[1:]), ["img_x", "img_y"]]
+            positions[self.encode_map[hold]] = torch.tensor(
+                [img_x / coords.img_x.max(), 1 - img_y / coords.img_y.max()]
+            )
+        return positions
 
     @property
     def start_token_id(self) -> int:
@@ -259,4 +288,6 @@ class Tokenizer:
 
     def __repr__(self):
         order = "role first" if self.role_first else "hold first"
+        if self.bottom_up:
+            order += ", bottom up"
         return f"Tokenizer, tokens:{len(self.encode_map)}, hold:{len(self.hold_tokens())}, {order}"

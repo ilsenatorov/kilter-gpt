@@ -16,7 +16,9 @@ parser.add_argument(
     "--popularity", type=str_to_bool, default=False, help="Condition on ascent count (with p_uncond dropout)"
 )
 parser.add_argument("--role_first", type=str_to_bool, default=False, help="Tokenize each hold as role then placement")
+parser.add_argument("--bottom_up", type=str_to_bool, default=False, help="Order holds bottom to top, not randomly")
 # training params
+parser.add_argument("--seed", type=int, default=42, help="Random seed")
 parser.add_argument("--only_train", type=str_to_bool, default=False, help="Skip the testing part")
 parser.add_argument("--epochs", type=int, default=500, help="Number of epochs")
 parser.add_argument("--lr", type=float, default=6e-4, help="Max learning rate")
@@ -31,6 +33,10 @@ parser.add_argument("--n_layer", type=int, default=8, help="Number of transforme
 parser.add_argument("--n_embed", type=int, default=512, help="Embedding dimension")
 parser.add_argument("--dropout", type=float, default=0.2, help="Dropout")
 parser.add_argument("--bias", type=str_to_bool, default=False, help="Use bias in attention layers")
+parser.add_argument("--hold_positions", type=str_to_bool, default=False, help="Add board positions to hold embeddings")
+parser.add_argument(
+    "--spatial_attention", type=str_to_bool, default=False, help="Bias attention between holds by board distance"
+)
 parser.add_argument("--context_len", type=int, default=64, help="Context length")
 config = parser.parse_args()
 

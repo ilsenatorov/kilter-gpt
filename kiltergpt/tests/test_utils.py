@@ -98,3 +98,13 @@ def test_scheduler():
         assert base_lr * end_lr_coeff <= lr <= base_lr
     for lr in lrs[100:]:
         assert lr == base_lr * end_lr_coeff
+
+
+def test_c2st_auc_and_hand_gap():
+    from kiltergpt.utils.metrics import c2st_auc, max_hand_gap
+
+    assert max_hand_gap("p1073r12p1387r14p1080r15") > 0.7  # bottom row to near the top, the foot doesn't count
+    low = [f"p{1073 + i}r12p{1110 + i}r13p{1150 + i}r14" for i in range(60)]
+    high = [f"p{1073 + i}r12p{1300 + i}r13p{1340 + i}r14" for i in range(60)]
+    assert c2st_auc(low, high) > 0.95
+    assert c2st_auc(low + low, low + low) == 0.5  # duplicated pairs are dropped, identical sets can't be told apart

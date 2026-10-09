@@ -9,7 +9,7 @@ from .models import GPTModel
 
 
 def train(config):
-    L.seed_everything(42)
+    L.seed_everything(getattr(config, "seed", 42))
     torch.set_float32_matmul_precision("high")
     dm = KilterDataModule(
         data_dir=config.data_dir,
@@ -19,6 +19,7 @@ def train(config):
         num_workers=config.num_workers,
         smooth_labels=config.smooth_labels,
         role_first=config.role_first,
+        bottom_up=config.bottom_up,
         popularity=config.popularity,
         test_subset=config.test_subset,
     )

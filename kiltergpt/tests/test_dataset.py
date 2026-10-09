@@ -192,6 +192,12 @@ def test_datamodule(dataset_dir):
         first = split[0]
         assert all(torch.equal(a, b) for a, b in zip(first, split[0], strict=True))
         assert split.shuffle_holds is False
+    shuffled = KilterDataModule(data_dir=dataset_dir, shuffle_test_prompts=True)
+    shuffled.setup()
+    assert shuffled.test.shuffle_holds and shuffled.test.eval and not shuffled.val.shuffle_holds
+    frames = shuffled.test.df.frames.iloc[0]  # 2 holds, so the prompt is the whole climb, in either order
+    orders = {shuffled.tokenizer.decode(shuffled.test[0][0], clean=True) for _ in range(30)}
+    assert len(orders) == 2 and all(climb_signature(prompt) == climb_signature(frames) for prompt in orders)
 
 
 def test_batch_sampler(dataset):

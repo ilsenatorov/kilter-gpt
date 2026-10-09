@@ -15,6 +15,9 @@ parser.add_argument(
 )
 parser.add_argument("--test_file", default="test-post-2024.csv", help="Held-out CSV in data_dir")
 parser.add_argument("--test_subset", type=float, default=1.0, help="Random fraction of the test set to generate from")
+parser.add_argument(
+    "--shuffle_test_prompts", action="store_true", help="Prompt with random holds, not the first in CSV order"
+)
 parser.add_argument("--limit_test_batches", type=int, default=None, help="For a quick benchmark smoke test")
 args = parser.parse_args()
 
@@ -24,7 +27,9 @@ for checkpoint in args.checkpoints:
         data_dir=args.data_dir,
         test_file=args.test_file,
         test_subset=args.test_subset,
+        shuffle_test_prompts=args.shuffle_test_prompts,
         role_first=model.tokenizer.role_first,
+        bottom_up=model.tokenizer.bottom_up,
         popularity=getattr(model.config, "popularity", False),
     )
     trainer = L.Trainer(

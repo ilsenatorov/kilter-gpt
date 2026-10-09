@@ -5,6 +5,7 @@ import lightning as L
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.nn.utils.rnn import pad_sequence
 
 from .. import __version__
 from ..data.datasets import climb_signature
@@ -14,6 +15,7 @@ from ..utils.metrics import generation_metrics, structure_metrics
 from ..utils.utils import KilterPolice, validate_prompt
 from .grade import GradePredictor
 
+N_FREQS = 6  # Fourier frequencies of the hold positions, 1 to 32 cycles across the board
 DEFAULT_CFG_SCALE = 3.0  # with temperature 1 and top-p 1: grade error close to temperature 0.7 without losing holds
 # Test-time sampling, temperature -> top-p: the old 0.7 / 0.8 default (comparable with earlier runs) and the new one
 TEST_TOP_P = {0.7: 0.8, 1.0: 1.0}
@@ -46,7 +48,8 @@ class CausalSelfAttention(nn.Module):
         self.n_embd = config.n_embed
         self.dropout = config.dropout
 
-    def forward(self, x: torch.Tensor):
+    def forward(self, x: torch.Tensor, bias: torch.Tensor | None = None):
+        """bias: optional (B, nh, T, T) additive attention bias, on top of the causal mask"""
         B, T, C = x.size()  # batch size, sequence length, embedding dimensionality (n_embd)
 
         # calculate query, key, values for all heads in batch and move head forward to be the batch dim
@@ -56,13 +59,16 @@ class CausalSelfAttention(nn.Module):
         v = v.view(B, T, self.n_head, C // self.n_head).transpose(1, 2)  # (B, nh, T, hs)
 
         # causal self-attention; Self-attend: (B, nh, T, hs) x (B, nh, hs, T) -> (B, nh, T, T)
+        if bias is not None:
+            causal = torch.ones(T, T, dtype=torch.bool, device=x.device).tril()
+            bias = bias.masked_fill(~causal, float("-inf"))
         y = F.scaled_dot_product_attention(
             q,
             k,
             v,
-            attn_mask=None,
+            attn_mask=bias,
             dropout_p=self.dropout if self.training else 0,
-            is_causal=True,
+            is_causal=bias is None,
         )
         y = y.transpose(1, 2).contiguous().view(B, T, C)  # re-assemble all head outputs side by side
         y = self.resid_dropout(self.c_proj(y))
@@ -93,8 +99,8 @@ class Block(nn.Module):
         self.ln_2 = LayerNorm(config.n_embed, bias=config.bias)
         self.mlp = MLP(config)
 
-    def forward(self, x):
-        x = x + self.attn(self.ln_1(x))
+    def forward(self, x, bias=None):
+        x = x + self.attn(self.ln_1(x), bias)
         x = x + self.mlp(self.ln_2(x))
         return x
 
@@ -102,9 +108,23 @@ class Block(nn.Module):
 class GPT(L.LightningModule):
     """The non-kilterboard specific GPT model"""
 
-    def __init__(self, config):
+    def __init__(self, config, hold_positions: torch.Tensor | None = None):
+        """hold_positions: (vocab_size, 2) board position of each hold token, for config.hold_positions"""
         super().__init__()
         self.config = config
+        # Optional: each hold's (tied input/output) embedding adds a function of its board position
+        self.position_proj = None
+        # Optional: attention between two holds drops with their board distance, at a learned rate per head
+        self.distance_slopes = None
+        if getattr(config, "hold_positions", False) or getattr(config, "spatial_attention", False):
+            self.register_buffer("hold_xy", hold_positions)
+            self.register_buffer("is_hold", hold_positions.abs().sum(1, keepdim=True) > 0)
+        if getattr(config, "hold_positions", False):
+            self.position_proj = nn.Sequential(
+                nn.Linear(4 * N_FREQS, config.n_embed), nn.GELU(), nn.Linear(config.n_embed, config.n_embed)
+            )
+        if getattr(config, "spatial_attention", False):  # half the heads start distance-blind
+            self.distance_slopes = nn.Parameter(torch.linspace(-4, 4, config.n_head).clamp(min=0))
         self.angle_proj = nn.Linear(1, self.config.n_embed)
         self.grade_proj = nn.Linear(1, self.config.n_embed)
         # Learned "no grade" embedding for classifier-free guidance; old checkpoints were trained without it
@@ -139,8 +159,24 @@ class GPT(L.LightningModule):
 
     def forward(self, idx, angle, grade, uncond=None, popularity=None):
         x = self.embed(idx, angle, grade, uncond, popularity)
-        logits = self.lm_head(x)
-        return logits
+        return F.linear(x, self.token_embeddings())
+
+    def token_embeddings(self) -> torch.Tensor:
+        """(vocab_size, n_embed), shared by the input and the output layer"""
+        if self.position_proj is None:
+            return self.lm_head.weight
+        freqs = 2 ** torch.arange(N_FREQS, device=self.hold_xy.device) * math.pi
+        angles = (self.hold_xy.unsqueeze(-1) * freqs).flatten(1)  # (vocab, 2 * N_FREQS)
+        fourier = torch.cat((angles.sin(), angles.cos()), dim=1)
+        return self.lm_head.weight + self.is_hold * self.position_proj(fourier)
+
+    def distance_bias(self, idx: torch.Tensor, n_prefix: int) -> torch.Tensor:
+        """(B, nh, T, T) attention bias: -slope * board distance between two hold tokens, 0 for any other pair"""
+        xy = F.pad(self.hold_xy[idx], (0, 0, n_prefix, 0))  # the prefix and role tokens have no position
+        has = F.pad(self.is_hold[idx].squeeze(-1).float(), (n_prefix, 0))
+        diff = xy.unsqueeze(2) - xy.unsqueeze(1)
+        distance = (diff.pow(2).sum(-1) + 1e-9).sqrt() * has.unsqueeze(2) * has.unsqueeze(1)
+        return -self.distance_slopes.view(1, -1, 1, 1) * distance.unsqueeze(1)
 
     def embed(self, idx, angle, grade, uncond=None, popularity=None):
         """uncond: optional (B,) bool mask replacing the grade with the null embedding
@@ -154,7 +190,7 @@ class GPT(L.LightningModule):
         if uncond is not None:
             grade = torch.where(uncond.view(b, 1, 1), self.null_grade, grade)
         pos = torch.arange(0, t, dtype=torch.long, device=self.device)  # shape (t)
-        tok_emb = self.transformer.wte(idx)  # token embeddings of shape (b, t, n_embd)
+        tok_emb = F.embedding(idx, self.token_embeddings())  # token embeddings of shape (b, t, n_embd)
         pos_emb = self.transformer.wpe(pos)  # position embeddings of shape (t, n_embd)
         x = self.transformer.drop(tok_emb + pos_emb)
         prefix = [angle, grade]
@@ -169,8 +205,9 @@ class GPT(L.LightningModule):
                     pop = torch.where(drop.view(b, 1, 1), null, pop)
                 prefix.append(pop)
         x = torch.cat((*prefix, x), dim=1)
+        bias = None if self.distance_slopes is None else self.distance_bias(idx, len(prefix))
         for block in self.transformer.h:
-            x = block(x)
+            x = block(x, bias)
         x = self.transformer.ln_f(x)
         return x
 
@@ -183,7 +220,9 @@ class GPTModel(L.LightningModule):
         self.save_hyperparameters()
         self.config = config
         self.tokenizer = tokenizer
-        self.model = GPT(self.config)
+        spatial = getattr(config, "hold_positions", False) or getattr(config, "spatial_attention", False)
+        positions = tokenizer.hold_positions() if spatial else None
+        self.model = GPT(self.config, positions)
         self._gen_logits = []
 
     # TODO add tests
@@ -264,13 +303,51 @@ class GPTModel(L.LightningModule):
             grade_predictor = GradePredictor.load_checkpoint(self.config.grade_predictor).to(self.device).eval()
         real = [frames for frames in self.trainer.datamodule.test.df.frames]
         self.log_dict({f"test/real/{name}": score for name, score in structure_metrics(real).items()})
+        self.log("test/set_nll", self.set_nll(self.trainer.datamodule.test.df))
         for (temp, cfg), generated in self.test_generated.items():
             prefix = f"test/temp={temp}/cfg={cfg}"
-            scores = generation_metrics(generated, self.test_reference, self.test_police)
+            scores = generation_metrics(generated, self.test_reference, self.test_police, real[: len(generated)])
             scores["fixed_prompt_unique_rate"] = self._get_fixed_prompt_diversity(temp, cfg)
             if grade_predictor is not None:
                 scores["grade_mae"] = grade_predictor.grade_mae(generated, self.test_conditions, self.test_police)
             self.log_dict({f"{prefix}/{name}": score for name, score in scores.items()})
+
+    @torch.no_grad()
+    def set_nll(self, df, n_perms: int = 8, batch_size: int = 512) -> float:
+        """Mean negative log-likelihood (nats) of each climb as a set of (hold, role) pairs, given its conditions.
+        Comparable across hold orders: a bottom-up model scores its one ordering, a shuffled model the mean
+        likelihood of n_perms random orderings times n!. Both are lower bounds on the set likelihood."""
+        was_training = self.training
+        self.eval()
+        bottom_up, n_perms = self.tokenizer.bottom_up, 1 if self.tokenizer.bottom_up else n_perms
+        popularity = getattr(self.config, "popularity", False)
+        rows = []
+        for frames, angle, grade, ascents in df[
+            ["frames", "angle", "difficulty_average", "ascensionist_count"]
+        ].values:
+            for _ in range(n_perms):
+                ordered = self.tokenizer.sort_bottom_up(frames) if bottom_up else frames
+                x, a, g = self.tokenizer.encode(ordered, int(angle), float(grade), shuffle=not bottom_up)
+                rows.append((x, a, g, self.tokenizer.popularity(ascents)))
+        lls = []
+        try:
+            for i in range(0, len(rows), batch_size):
+                x, angle, grade, pop = zip(*rows[i : i + batch_size], strict=True)
+                x = pad_sequence(x, batch_first=True, padding_value=self.tokenizer.pad_token_id).to(self.device)
+                angle, grade = torch.stack(angle).unsqueeze(1).to(self.device), torch.stack(grade).unsqueeze(1)
+                pop = torch.tensor(pop).unsqueeze(1).to(self.device) if popularity else None
+                logits = self(x[:, :-1], angle, grade.to(self.device), popularity=pop)[:, -x.size(1) + 1 :]
+                targets = x[:, 1:]
+                token_ll = -F.cross_entropy(logits.transpose(1, 2), targets, reduction="none")
+                lls.append((token_ll * (targets != self.tokenizer.pad_token_id)).sum(1).cpu())
+        finally:
+            self.train(was_training)
+        lls = torch.cat(lls).view(len(df), n_perms)
+        n_holds = torch.tensor([frames.count("p") for frames in df["frames"]], dtype=torch.float)
+        set_ll = torch.logsumexp(lls, 1) - math.log(n_perms)
+        if not bottom_up:
+            set_ll = set_ll + torch.lgamma(n_holds + 1)
+        return -set_ll.mean().item()
 
     # TODO add tests
     def on_train_epoch_end(self):

@@ -9,7 +9,7 @@ import torch
 import torch.nn.functional as F
 from torch.utils.data import Dataset
 
-from .tokenizer import Tokenizer
+from .tokenizer import Tokenizer, shuffle_holds
 
 
 def climb_signature(frames: str) -> str:
@@ -108,11 +108,19 @@ class KilterDataset(Dataset):
 
     def _get_whole_buffer(self, idx: int):
         row = self.df.iloc[idx]
+        frames, shuffle = row["frames"], self.shuffle_holds
+        if self.tokenizer.bottom_up and not self.eval:  # eval prompts keep the CSV order, like hold-shuffled models
+            n_prefix = 0
+            if shuffle:  # half the time a random prompt of up to 30% of the holds comes first, as at generation
+                frames = shuffle_holds(frames)
+                n_holds = frames.count("p")
+                n_prefix = np.random.randint(1, max(1, math.ceil(0.3 * n_holds)) + 1) if np.random.rand() < 0.5 else 0
+            frames, shuffle = self.tokenizer.sort_bottom_up(frames, n_prefix), False
         tokenized, angle, grade = self.tokenizer.encode(
-            row["frames"],
+            frames,
             row["angle"].item(),
             row["difficulty_average"],
-            shuffle=self.shuffle_holds,
+            shuffle=shuffle,
         )
         return tokenized, angle, grade
 

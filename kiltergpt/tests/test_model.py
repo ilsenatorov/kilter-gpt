@@ -136,3 +136,58 @@ def test_popularity(sample_config, tmp_path):
     model.train().shared_step(batch, "train").backward()
     dataset.eval = True  # test batches carry it too
     assert len(dataset[0]) == 5
+
+
+def test_bottom_up_and_set_nll(sample_config, tmp_path):
+    tokenizer = Tokenizer(bottom_up=True)
+    # p1073 is on the bottom row, p1387 near the top; a prompt prefix keeps its order
+    assert tokenizer.sort_bottom_up("p1387r14p1200r13p1073r12") == "p1073r12p1200r13p1387r14"
+    assert tokenizer.sort_bottom_up("p1387r14p1200r13p1073r12", n_prefix=1) == "p1387r14p1073r12p1200r13"
+    frames = "p1387r14p1200r13p1073r12p1250r15"
+    df = pd.DataFrame({"frames": [frames], "angle": 40, "difficulty_average": 20, "ascensionist_count": 5})
+    df.to_csv(tmp_path / "climbs.csv", index=False)
+    dataset = KilterDataset(tmp_path / "climbs.csv", tokenizer, shuffle_holds=False)
+    assert tokenizer.decode(dataset[0][0], clean=True) == "p1073r12p1200r13p1250r15p1387r14"
+    dataset.eval = True  # test prompts keep the CSV order
+    assert tokenizer.decode(dataset[0][3], clean=True) == frames
+    train = KilterDataset(tmp_path / "climbs.csv", tokenizer)  # shuffled prompt, then bottom up
+    for _ in range(20):
+        holds = tokenizer.decode(train[0][0], clean=True).split("p")[1:]
+        ranks = [tokenizer.hold_rank["p" + hold.split("r")[0]] for hold in holds[2:]]
+        assert ranks == sorted(ranks)  # at most ceil(0.3 * 4) = 2 prompt holds
+    for tok in (tokenizer, Tokenizer()):
+        model = GPTModel(Namespace(**vars(sample_config), p_uncond=0.1, popularity=True), tok)
+        nll = model.set_nll(df)
+        assert 0 < nll < 100 and model.training  # restores train mode
+
+
+def test_hold_positions(sample_config):
+    tokenizer = Tokenizer()
+    positions = tokenizer.hold_positions()
+    p1073, p1387 = positions[tokenizer.encode_map["p1073"]], positions[tokenizer.encode_map["p1387"]]
+    assert p1073[1] < 0.1 < 0.8 < p1387[1]  # bottom row, near the top
+    assert (positions[tokenizer.special_token_ids] == 0).all()
+    model = GPTModel(Namespace(**vars(sample_config), p_uncond=0.1, hold_positions=True), tokenizer)
+    special = tokenizer.special_token_ids
+    assert torch.equal(model.model.token_embeddings()[special], model.model.lm_head.weight[special])
+    x, angle, grade = torch.tensor([[1, 100, 6]]), torch.tensor([[40 / 70]]), torch.tensor([[0.5]])
+    model(x, angle, grade).sum().backward()
+    assert model.model.position_proj[0].weight.grad.abs().sum() > 0
+    police = KilterPolice(tokenizer, (1, 2), (1, 2), n_total_holds=(4, 28))
+    assert police.check(model.generate_from_string("p1234r12", 40, "7a"))
+
+
+def test_spatial_attention(sample_config):
+    tokenizer = Tokenizer(role_first=True)
+    model = GPTModel(Namespace(**vars(sample_config), p_uncond=0.1, spatial_attention=True), tokenizer)
+    assert model.model.position_proj is None
+    x = torch.tensor([[1, 5, tokenizer.encode_map["p1073"], 6, tokenizer.encode_map["p1387"]]])
+    bias = model.model.distance_bias(x, 2)
+    assert bias.shape == (1, 2, 7, 7)  # 2 prefix tokens; holds at 4 and 6
+    assert bias[0, 0, 4, 6] == 0 and bias[0, 1, 4, 6] < 0  # the first head starts distance-blind
+    assert bias[0, 1, 3, 6] == 0 and bias[0, 1, 0, 6] == 0  # role and prefix tokens have no position
+    angle, grade = torch.tensor([[40 / 70]]), torch.tensor([[0.5]])
+    model(x, angle, grade).sum().backward()
+    assert model.model.distance_slopes.grad.abs().sum() > 0
+    police = KilterPolice(tokenizer, (1, 2), (1, 2), n_total_holds=(4, 28))
+    assert police.check(model.generate_from_string("p1234r12", 40, "7a"))
